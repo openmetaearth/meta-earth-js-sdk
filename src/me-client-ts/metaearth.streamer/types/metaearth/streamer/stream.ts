@@ -25,7 +25,8 @@ export interface Stream {
   /** start_time is the distribution start time */
   startTime: Date | undefined
   /**
-   * distr_epoch_identifier is what epoch type di-stribution will be triggered by
+   * distr_epoch_identifier is what epoch type di-stribution will be triggered
+   * by
    * (day, week, etc.)
    */
   distrEpochIdentifier: string
@@ -187,21 +188,21 @@ export const Stream = {
 declare var self: any | undefined
 declare var window: any | undefined
 declare var global: any | undefined
-// var globalThis: any = (() => {
-//   if (typeof globalThis !== 'undefined') {
-//     return globalThis
-//   }
-//   if (typeof self !== 'undefined') {
-//     return self
-//   }
-//   if (typeof window !== 'undefined') {
-//     return window
-//   }
-//   if (typeof global !== 'undefined') {
-//     return global
-//   }
-//   throw 'Unable to locate global object'
-// })()
+var globalThis: any = (() => {
+  if (typeof globalThis !== 'undefined') {
+    return globalThis
+  }
+  if (typeof self !== 'undefined') {
+    return self
+  }
+  if (typeof window !== 'undefined') {
+    return window
+  }
+  if (typeof global !== 'undefined') {
+    return global
+  }
+  throw 'Unable to locate global object'
+})()
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
 

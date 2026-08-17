@@ -7,21 +7,15 @@ import { msgTypes } from './registry'
 import { IgniteClient } from '../client'
 import { MissingWalletError } from '../helpers'
 import { Api } from './rest'
-import { MsgGrantAllowance } from './types/cosmos/feegrant/v1beta1/tx'
 import { MsgRevokeAllowance } from './types/cosmos/feegrant/v1beta1/tx'
+import { MsgGrantAllowance } from './types/cosmos/feegrant/v1beta1/tx'
 
 import { BasicAllowance as typeBasicAllowance } from './types'
 import { PeriodicAllowance as typePeriodicAllowance } from './types'
 import { AllowedMsgAllowance as typeAllowedMsgAllowance } from './types'
 import { Grant as typeGrant } from './types'
 
-export { MsgGrantAllowance, MsgRevokeAllowance }
-
-type sendMsgGrantAllowanceParams = {
-  value: MsgGrantAllowance
-  fee?: StdFee
-  memo?: string
-}
+export { MsgRevokeAllowance, MsgGrantAllowance }
 
 type sendMsgRevokeAllowanceParams = {
   value: MsgRevokeAllowance
@@ -29,12 +23,18 @@ type sendMsgRevokeAllowanceParams = {
   memo?: string
 }
 
-type msgGrantAllowanceParams = {
+type sendMsgGrantAllowanceParams = {
   value: MsgGrantAllowance
+  fee?: StdFee
+  memo?: string
 }
 
 type msgRevokeAllowanceParams = {
   value: MsgRevokeAllowance
+}
+
+type msgGrantAllowanceParams = {
+  value: MsgGrantAllowance
 }
 
 export const registry = new Registry(msgTypes)
@@ -66,27 +66,6 @@ export const txClient = (
   { signer, prefix, addr }: TxClientOptions = { addr: 'http://localhost:26657', prefix: 'cosmos' },
 ) => {
   return {
-    async sendMsgGrantAllowance({
-      value,
-      fee,
-      memo,
-    }: sendMsgGrantAllowanceParams): Promise<DeliverTxResponse> {
-      if (!signer) {
-        throw new Error('TxClient:sendMsgGrantAllowance: Unable to sign Tx. Signer is not present.')
-      }
-      try {
-        const { address } = (await signer.getAccounts())[0]
-        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
-          registry,
-          prefix,
-        } as any)
-        let msg = this.msgGrantAllowance({ value: MsgGrantAllowance.fromPartial(value) })
-        return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
-      } catch (e: any) {
-        throw new Error('TxClient:sendMsgGrantAllowance: Could not broadcast Tx: ' + e.message)
-      }
-    },
-
     async sendMsgRevokeAllowance({
       value,
       fee,
@@ -101,8 +80,7 @@ export const txClient = (
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
-        } as any)
+        })
         let msg = this.msgRevokeAllowance({ value: MsgRevokeAllowance.fromPartial(value) })
         return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {
@@ -110,14 +88,23 @@ export const txClient = (
       }
     },
 
-    msgGrantAllowance({ value }: msgGrantAllowanceParams): EncodeObject {
+    async sendMsgGrantAllowance({
+      value,
+      fee,
+      memo,
+    }: sendMsgGrantAllowanceParams): Promise<DeliverTxResponse> {
+      if (!signer) {
+        throw new Error('TxClient:sendMsgGrantAllowance: Unable to sign Tx. Signer is not present.')
+      }
       try {
-        return {
-          typeUrl: '/cosmos.feegrant.v1beta1.MsgGrantAllowance',
-          value: MsgGrantAllowance.fromPartial(value),
-        }
+        const { address } = (await signer.getAccounts())[0]
+        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
+          registry,
+        })
+        let msg = this.msgGrantAllowance({ value: MsgGrantAllowance.fromPartial(value) })
+        return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {
-        throw new Error('TxClient:MsgGrantAllowance: Could not create message: ' + e.message)
+        throw new Error('TxClient:sendMsgGrantAllowance: Could not broadcast Tx: ' + e.message)
       }
     },
 
@@ -129,6 +116,17 @@ export const txClient = (
         }
       } catch (e: any) {
         throw new Error('TxClient:MsgRevokeAllowance: Could not create message: ' + e.message)
+      }
+    },
+
+    msgGrantAllowance({ value }: msgGrantAllowanceParams): EncodeObject {
+      try {
+        return {
+          typeUrl: '/cosmos.feegrant.v1beta1.MsgGrantAllowance',
+          value: MsgGrantAllowance.fromPartial(value),
+        }
+      } catch (e: any) {
+        throw new Error('TxClient:MsgGrantAllowance: Could not create message: ' + e.message)
       }
     },
   }

@@ -50,6 +50,20 @@ export interface MetaearthwstakingFixedDepositCfg {
   status?: WstakingFIXEDDEPOSITCFGSTATUS
 }
 
+export interface MetaearthwstakingHeight {
+  /**
+   * the revision that the client is currently on
+   * @format uint64
+   */
+  revision_number?: string
+
+  /**
+   * the height within the given revision
+   * @format uint64
+   */
+  revision_height?: string
+}
+
 export interface MetaearthwstakingRegion {
   regionId?: string
   name?: string
@@ -377,6 +391,8 @@ export interface WstakingMsgDoFixedDepositResponse {
   id?: string
 }
 
+export type WstakingMsgIbcTransferFromRegionTreasureResponse = object
+
 export interface WstakingMsgNewFixedDepositCfgResp {
   retcode?: string
 }
@@ -455,6 +471,21 @@ export type WstakingMsgWithdrawFromGlobalDaoFeePoolResp = object
 
 export type WstakingMsgWithdrawFromRegionResp = object
 
+export interface WstakingQueryAllDelegationsResponse {
+  delegations?: Stakingv1Beta1Delegation[]
+
+  /**
+   * PageResponse is to be embedded in gRPC response messages where the
+   * corresponding request message has used PageRequest.
+   *
+   *  message SomeResponse {
+   *          repeated Bar results = 1;
+   *          PageResponse page = 2;
+   *  }
+   */
+  pagination?: V1Beta1PageResponse
+}
+
 export interface WstakingQueryAllFixedDepositResponse {
   FixedDeposit?: MetaearthwstakingFixedDeposit[]
 
@@ -520,12 +551,27 @@ export interface WstakingQueryFixedDepositByAcctResponse {
   FixedDeposit?: MetaearthwstakingFixedDeposit[]
 }
 
+export interface WstakingQueryFixedDepositByRegionResponse {
+  FixedDeposit?: MetaearthwstakingFixedDeposit[]
+
+  /**
+   * PageResponse is to be embedded in gRPC response messages where the
+   * corresponding request message has used PageRequest.
+   *
+   *  message SomeResponse {
+   *          repeated Bar results = 1;
+   *          PageResponse page = 2;
+   *  }
+   */
+  pagination?: V1Beta1PageResponse
+}
+
 export interface WstakingQueryFixedDepositCfgByTermResponse {
   FixedDepositCfg?: MetaearthwstakingFixedDepositCfg
 }
 
 export interface WstakingQueryFixedDepositCfgResponse {
-  FixedDepositCfgs?: MetaearthwstakingFixedDepositCfg[]
+  RegionFixedDepositCfgs?: WstakingRegionAllFixedDepositCfg[]
 }
 
 export interface WstakingQueryFixedDepositTotalAmountResponse {
@@ -575,6 +621,18 @@ export interface WstakingRecord {
   recordNumber?: string
   url?: string
   from?: string
+}
+
+export interface WstakingRegionAllFixedDepositCfg {
+  regionId?: string
+  RegionFixedDepositCfg?: WstakingRegionFixedDepositCfg[]
+}
+
+export interface WstakingRegionFixedDepositCfg {
+  /** @format int64 */
+  term?: string
+  rate?: string
+  status?: WstakingFIXEDDEPOSITCFGSTATUS
 }
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, ResponseType } from 'axios'
@@ -712,6 +770,59 @@ export class HttpClient<SecurityDataType = unknown> {
  * @version version not set
  */
 export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDataType> {
+  /**
+   * No description
+   *
+   * @tags Query
+   * @name QueryFixedDepositByRegion
+   * @summary Queries a list of FixedDepositByRegion items.
+   * @request GET:/cosmos/staking/v1beta1/fixed_deposit_by_region/{region_id}
+   */
+  queryFixedDepositByRegion = (
+    regionId: string,
+    query?: {
+      'pagination.key'?: string
+      'pagination.offset'?: string
+      'pagination.limit'?: string
+      'pagination.count_total'?: boolean
+      'pagination.reverse'?: boolean
+      query_type?: 'ALL_STATE' | 'NOT_EXPIRED' | 'EXPIRED'
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WstakingQueryFixedDepositByRegionResponse, RpcStatus>({
+      path: `/cosmos/staking/v1beta1/fixed_deposit_by_region/${regionId}`,
+      method: 'GET',
+      query: query,
+      format: 'json',
+      ...params,
+    })
+
+  /**
+   * No description
+   *
+   * @tags Query
+   * @name QueryAllDelegations
+   * @request GET:/metaearth/wstaking/all-delegations
+   */
+  queryAllDelegations = (
+    query?: {
+      'pagination.key'?: string
+      'pagination.offset'?: string
+      'pagination.limit'?: string
+      'pagination.count_total'?: boolean
+      'pagination.reverse'?: boolean
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WstakingQueryAllDelegationsResponse, RpcStatus>({
+      path: `/metaearth/wstaking/all-delegations`,
+      method: 'GET',
+      query: query,
+      format: 'json',
+      ...params,
+    })
+
   /**
    * No description
    *
@@ -862,7 +973,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
    * @name QueryFixedDepositCfg
    * @request GET:/metaearth/wstaking/fixed_deposit_cfg
    */
-  queryFixedDepositCfg = (query?: { regionId?: string }, params: RequestParams = {}) =>
+  queryFixedDepositCfg = (query?: { regionIds?: string[] }, params: RequestParams = {}) =>
     this.request<WstakingQueryFixedDepositCfgResponse, RpcStatus>({
       path: `/metaearth/wstaking/fixed_deposit_cfg`,
       method: 'GET',

@@ -14,6 +14,7 @@ import { MsgUnstake } from './types/metaearth/wstaking/tx'
 import { MsgWithdrawDelegatorReward } from './types/metaearth/wstaking/tx'
 import { MsgReviewRecord } from './types/metaearth/wstaking/tx'
 import { MsgNewRecord } from './types/metaearth/wstaking/tx'
+import { MsgIbcTransferFromRegionTreasure } from './types/metaearth/wstaking/tx'
 import { MsgStake } from './types/metaearth/wstaking/tx'
 import { MsgTransferRegion } from './types/metaearth/wstaking/tx'
 import { MsgNewRegion } from './types/metaearth/wstaking/tx'
@@ -38,9 +39,10 @@ import {
 import { FixedDeposit as typeFixedDeposit } from './types'
 import { FixedDepositTotal as typeFixedDepositTotal } from './types'
 import { FixedDepositCfg as typeFixedDepositCfg } from './types'
+import { RegionAllFixedDepositCfg as typeRegionAllFixedDepositCfg } from './types'
+import { RegionFixedDepositCfg as typeRegionFixedDepositCfg } from './types'
 import { LastValidatorPower as typeLastValidatorPower } from './types'
 import { Meid as typeMeid } from './types'
-import { MeidNFT as typeMeidNFT } from './types'
 import { Record as typeRecord } from './types'
 import { ReviewRecord as typeReviewRecord } from './types'
 import { Region as typeRegion } from './types'
@@ -61,6 +63,7 @@ export {
   MsgWithdrawDelegatorReward,
   MsgReviewRecord,
   MsgNewRecord,
+  MsgIbcTransferFromRegionTreasure,
   MsgStake,
   MsgTransferRegion,
   MsgNewRegion,
@@ -110,6 +113,12 @@ type sendMsgReviewRecordParams = {
 
 type sendMsgNewRecordParams = {
   value: MsgNewRecord
+  fee?: StdFee
+  memo?: string
+}
+
+type sendMsgIbcTransferFromRegionTreasureParams = {
+  value: MsgIbcTransferFromRegionTreasure
   fee?: StdFee
   memo?: string
 }
@@ -194,6 +203,10 @@ type msgReviewRecordParams = {
 
 type msgNewRecordParams = {
   value: MsgNewRecord
+}
+
+type msgIbcTransferFromRegionTreasureParams = {
+  value: MsgIbcTransferFromRegionTreasure
 }
 
 type msgStakeParams = {
@@ -430,6 +443,32 @@ export const txClient = (
         return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {
         throw new Error('TxClient:sendMsgNewRecord: Could not broadcast Tx: ' + e.message)
+      }
+    },
+
+    async sendMsgIbcTransferFromRegionTreasure({
+      value,
+      fee,
+      memo,
+    }: sendMsgIbcTransferFromRegionTreasureParams): Promise<DeliverTxResponse> {
+      if (!signer) {
+        throw new Error(
+          'TxClient:sendMsgIbcTransferFromRegionTreasure: Unable to sign Tx. Signer is not present.',
+        )
+      }
+      try {
+        const { address } = (await signer.getAccounts())[0]
+        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
+          registry,
+        })
+        const msg = this.msgIbcTransferFromRegionTreasure({
+          value: MsgIbcTransferFromRegionTreasure.fromPartial(value),
+        })
+        return await signingClient.signAndBroadcast(address, [msg], fee ?? defaultFee, memo)
+      } catch (e: any) {
+        throw new Error(
+          'TxClient:sendMsgIbcTransferFromRegionTreasure: Could not broadcast Tx: ' + e.message,
+        )
       }
     },
 
@@ -745,6 +784,21 @@ export const txClient = (
       }
     },
 
+    msgIbcTransferFromRegionTreasure({
+      value,
+    }: msgIbcTransferFromRegionTreasureParams): EncodeObject {
+      try {
+        return {
+          typeUrl: '/metaearth.wstaking.MsgIbcTransferFromRegionTreasure',
+          value: MsgIbcTransferFromRegionTreasure.fromPartial(value),
+        }
+      } catch (e: any) {
+        throw new Error(
+          'TxClient:MsgIbcTransferFromRegionTreasure: Could not create message: ' + e.message,
+        )
+      }
+    },
+
     msgStake({ value }: msgStakeParams): EncodeObject {
       try {
         return { typeUrl: '/metaearth.wstaking.MsgStake', value: MsgStake.fromPartial(value) }
@@ -919,9 +973,10 @@ class SDKModule {
       FixedDeposit: getStructure(typeFixedDeposit.fromPartial({})),
       FixedDepositTotal: getStructure(typeFixedDepositTotal.fromPartial({})),
       FixedDepositCfg: getStructure(typeFixedDepositCfg.fromPartial({})),
+      RegionAllFixedDepositCfg: getStructure(typeRegionAllFixedDepositCfg.fromPartial({})),
+      RegionFixedDepositCfg: getStructure(typeRegionFixedDepositCfg.fromPartial({})),
       LastValidatorPower: getStructure(typeLastValidatorPower.fromPartial({})),
       Meid: getStructure(typeMeid.fromPartial({})),
-      MeidNFT: getStructure(typeMeidNFT.fromPartial({})),
       Record: getStructure(typeRecord.fromPartial({})),
       ReviewRecord: getStructure(typeReviewRecord.fromPartial({})),
       Region: getStructure(typeRegion.fromPartial({})),

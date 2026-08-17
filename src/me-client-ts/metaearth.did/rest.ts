@@ -21,7 +21,8 @@ export interface DidDidInfo {
 
   /**
    * public_key is mapped to the user address
-   * the issuer will use public_key to encrypt the user's certificate to ensure the privacy of the off-chain certificate
+   * the issuer will use public_key to encrypt the user's certificate to ensure
+   * the privacy of the off-chain certificate
    */
   pubkey?: string
   status?: DidDidStatus
@@ -40,6 +41,9 @@ export enum DidKycLevel {
   KYC_LEVEL_NONE = 'KYC_LEVEL_NONE',
   KYC_LEVEL_ONE = 'KYC_LEVEL_ONE',
   KYC_LEVEL_TWO = 'KYC_LEVEL_TWO',
+  KYC_LEVEL_THREE = 'KYC_LEVEL_THREE',
+  KYC_LEVEL_FOUR = 'KYC_LEVEL_FOUR',
+  KYC_LEVEL_FIVE = 'KYC_LEVEL_FIVE',
 }
 
 export type DidMsgCreateDidResponse = object
@@ -108,17 +112,13 @@ export enum DidServiceStatus {
 }
 
 export interface MetaearthdidCredential {
-  /** MEIDNFT.umeid */
   did?: string
-
-  /** MEID.creator */
   sid?: string
   hash?: string
   uri?: string
 
   /**
    * data is an app specific data of the credential. Optional
-   * MEID.regionId
    * @format byte
    */
   data?: string

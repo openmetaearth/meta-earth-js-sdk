@@ -115,12 +115,25 @@ import {
   msgTypes as IbcCoreConnectionV1MsgTypes,
 } from './ibc.core.connection.v1'
 import { Module as MetaearthDao, msgTypes as MetaearthDaoMsgTypes } from './metaearth.dao'
+import {
+  Module as MetaearthDelayedack,
+  msgTypes as MetaearthDelayedackMsgTypes,
+} from './metaearth.delayedack'
 import { Module as MetaearthDid, msgTypes as MetaearthDidMsgTypes } from './metaearth.did'
+import { Module as MetaearthEibc, msgTypes as MetaearthEibcMsgTypes } from './metaearth.eibc'
 import { Module as MetaearthKyc, msgTypes as MetaearthKycMsgTypes } from './metaearth.kyc'
 import {
   Module as MetaearthMegroup,
   msgTypes as MetaearthMegroupMsgTypes,
 } from './metaearth.megroup'
+import {
+  Module as MetaearthRollapp,
+  msgTypes as MetaearthRollappMsgTypes,
+} from './metaearth.rollapp'
+import {
+  Module as MetaearthSequencer,
+  msgTypes as MetaearthSequencerMsgTypes,
+} from './metaearth.sequencer'
 import {
   Module as MetaearthStreamer,
   msgTypes as MetaearthStreamerMsgTypes,
@@ -169,9 +182,13 @@ const Client = IgniteClient.plugin([
   IbcCoreClientV1,
   IbcCoreConnectionV1,
   MetaearthDao,
+  MetaearthDelayedack,
   MetaearthDid,
+  MetaearthEibc,
   MetaearthKyc,
   MetaearthMegroup,
+  MetaearthRollapp,
+  MetaearthSequencer,
   MetaearthStreamer,
   MetaearthWdistri,
   MetaearthWnft,
@@ -212,9 +229,13 @@ const registry = new Registry([
   ...IbcCoreClientV1MsgTypes,
   ...IbcCoreConnectionV1MsgTypes,
   ...MetaearthDaoMsgTypes,
+  ...MetaearthDelayedackMsgTypes,
   ...MetaearthDidMsgTypes,
+  ...MetaearthEibcMsgTypes,
   ...MetaearthKycMsgTypes,
   ...MetaearthMegroupMsgTypes,
+  ...MetaearthRollappMsgTypes,
+  ...MetaearthSequencerMsgTypes,
   ...MetaearthStreamerMsgTypes,
   ...MetaearthWdistriMsgTypes,
   ...MetaearthWnftMsgTypes,

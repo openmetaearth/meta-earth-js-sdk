@@ -35,11 +35,11 @@ export interface MsgInstantiateContract {
   /** Sender is the that actor that signed the messages */
   sender: string
   /** Admin is an optional address that can execute migrations */
-  admin?: string
+  admin: string
   /** CodeID is the reference to the stored WASM code */
   codeId: number
   /** Label is optional metadata to be stored with a contract instance. */
-  label?: string
+  label: string
   /** Msg json encoded message to be passed to the contract on instantiation */
   msg: Uint8Array
   /** Funds coins that are transferred to the contract on instantiation */
@@ -2563,21 +2563,21 @@ interface Rpc {
 declare var self: any | undefined
 declare var window: any | undefined
 declare var global: any | undefined
-// var globalThis: any = (() => {
-//   if (typeof globalThis !== 'undefined') {
-//     return globalThis
-//   }
-//   if (typeof self !== 'undefined') {
-//     return self
-//   }
-//   if (typeof window !== 'undefined') {
-//     return window
-//   }
-//   if (typeof global !== 'undefined') {
-//     return global
-//   }
-//   throw 'Unable to locate global object'
-// })()
+var globalThis: any = (() => {
+  if (typeof globalThis !== 'undefined') {
+    return globalThis
+  }
+  if (typeof self !== 'undefined') {
+    return self
+  }
+  if (typeof window !== 'undefined') {
+    return window
+  }
+  if (typeof global !== 'undefined') {
+    return global
+  }
+  throw 'Unable to locate global object'
+})()
 
 function bytesFromBase64(b64: string): Uint8Array {
   if (globalThis.Buffer) {

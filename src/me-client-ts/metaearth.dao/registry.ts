@@ -1,8 +1,10 @@
 import { GeneratedType } from '@cosmjs/proto-signing'
-import { MsgUpdateGlobalDao } from './types/metaearth/dao/tx'
+import { MsgUpdateDao } from './types/metaearth/dao/tx'
 
-const msgTypes: Array<[string, GeneratedType]> = [
-  ['/metaearth.dao.MsgUpdateGlobalDao', MsgUpdateGlobalDao],
-]
+// CosmJS 0.27's GeneratedType type only models protobufjs writers. Buf writers
+// expose the same encode(...).finish() contract used by Registry at runtime.
+const msgTypes = [['/metaearth.dao.MsgUpdateDao', MsgUpdateDao]] as unknown as Array<
+  [string, GeneratedType]
+>
 
 export { msgTypes }
