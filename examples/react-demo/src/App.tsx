@@ -9,6 +9,7 @@ import { TransactionPanel } from './components/TransactionPanel'
 import { StakingPanel } from './components/StakingPanel'
 import { GovernancePanel } from './components/GovernancePanel'
 import { ContractPanel } from './components/ContractPanel'
+import { IdentityPanel } from './components/IdentityPanel'
 import './App.css'
 
 const { Header, Content } = Layout
@@ -131,6 +132,11 @@ function App() {
                 children: (
                   <TransactionPanel sdk={sdk} isInitialized={isInitialized} addLog={addLog} />
                 ),
+              },
+              {
+                key: 'identity',
+                label: 'ME ID & Sub-accounts',
+                children: <IdentityPanel sdk={sdk} isInitialized={isInitialized} addLog={addLog} />,
               },
               {
                 key: 'staking',
