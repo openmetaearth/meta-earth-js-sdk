@@ -8,6 +8,7 @@ A feature-complete TypeScript SDK for Meta Earth blockchain wallet management, t
 | ------------ | ------------------------------------------------------------ | --------- |
 | **Wallet Management** | Mnemonic generation, wallet creation, batch creation, import/export, address conversion, balance query | 100% |
 | **Transaction** | Transfer, transaction query, Gas simulation | 100% |
+| **ME ID / Sub-accounts** | Bind Cosmos and ETH-derived accounts, query by address, ME ID, or sub-account | 100% |
 | **Network Info** | Node version query, network status query | 100% |
 | **Staking** | Flexible staking, unstake, query delegation, query rewards, claim rewards | 100% |
 | **Governance** | Query proposals, submit proposals, vote on proposals | 100% |
@@ -260,6 +261,55 @@ console.log('Estimated Gas:', result.gas_info.gas_used)
 ```
 
 **API Endpoint**: `/cosmos/tx/v1beta1/simulate`
+
+---
+
+### ME ID and Sub-accounts (`sdk.identity`)
+
+#### `bindSubAccount(params)`
+
+Bind a cached Cosmos-derived account to the ETH-derived address created from the same mnemonic
+and account index. The SDK verifies that both addresses share the same compressed secp256k1
+public key, serializes the Ethermint public key, simulates gas, signs, and broadcasts
+`/metaearth.kyc.MsgCreateSubAccount`.
+
+```typescript
+const txHash = await sdk.identity.bindSubAccount({
+  creator: cosmosWallet.address,
+  subAccount: ethWallet.address,
+  memo: 'Bind ETH sub-account',
+})
+```
+
+#### `getMeIdByAddress(address, layer?)`
+
+Query ME ID status and the bound sub-account by a main account address.
+
+```typescript
+const result = await sdk.identity.getMeIdByAddress('me1...')
+if (result.hasMeId) {
+  console.log(result.info?.did, result.info?.subAccount)
+}
+```
+
+#### `getMeIdByDid(did, layer?)`
+
+Query the main account and bound sub-account by ME ID.
+
+```typescript
+const result = await sdk.identity.getMeIdByDid('5010874248025')
+```
+
+#### `getMeIdBySubAccount(subAccount, layer?)`
+
+Query the main account and ME ID associated with an ETH-derived sub-account.
+
+```typescript
+const result = await sdk.identity.getMeIdBySubAccount('me1...')
+```
+
+Known chain responses for missing records are returned as `{ hasMeId: false, info: null }`.
+Network and unexpected protocol errors are thrown.
 
 ---
 

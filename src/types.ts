@@ -76,6 +76,37 @@ export interface TransferParams {
 }
 
 /**
+ * Parameters for binding a Cosmos account to its ETH-derived sub-account.
+ */
+export interface BindSubAccountParams {
+  creator: string
+  subAccount: string
+  memo?: string
+  layer?: Layer
+}
+
+/**
+ * ME ID information returned by the chain REST API.
+ */
+export interface MeIdInfo {
+  did: string
+  address: string
+  pubkey: string
+  status: string
+  regionId: string
+  kycLevel: string
+  subAccount: string
+}
+
+/**
+ * ME ID lookup result. Network and protocol errors are still thrown.
+ */
+export interface MeIdLookupResult {
+  hasMeId: boolean
+  info: MeIdInfo | null
+}
+
+/**
  * Flexible Staking Parameters
  */
 export interface FlexibleStakingParams {

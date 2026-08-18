@@ -13,12 +13,24 @@ import { MsgRemove } from './types/metaearth/kyc/tx'
 import { MsgUpdateSBT } from './types/metaearth/kyc/tx'
 import { MsgUpdate } from './types/metaearth/kyc/tx'
 import { MsgCreateSBT } from './types/metaearth/kyc/tx'
+import { MsgCreateSubAccount } from './types/metaearth/kyc/tx'
+import { gas_max_set } from '../../config/define'
+import { getFinalGas, getFinalGasLimit } from '../../me-client-utils/config'
+import { getSignData, getSimulateGas, handleTxRaw } from '../../me-client-utils'
 
 import { KycEventSeq as typeKycEventSeq } from './types'
 import { Region as typeRegion } from './types'
 import { Protocol as typeProtocol } from './types'
 
-export { MsgDeleteSBT, MsgApprove, MsgRemove, MsgUpdateSBT, MsgUpdate, MsgCreateSBT }
+export {
+  MsgDeleteSBT,
+  MsgApprove,
+  MsgRemove,
+  MsgUpdateSBT,
+  MsgUpdate,
+  MsgCreateSBT,
+  MsgCreateSubAccount,
+}
 
 type sendMsgDeleteSBTParams = {
   value: MsgDeleteSBT
@@ -56,6 +68,12 @@ type sendMsgCreateSBTParams = {
   memo?: string
 }
 
+type sendMsgCreateSubAccountParams = {
+  value: MsgCreateSubAccount
+  gas?: string | number
+  memo?: string
+}
+
 type msgDeleteSBTParams = {
   value: MsgDeleteSBT
 }
@@ -78,6 +96,10 @@ type msgUpdateParams = {
 
 type msgCreateSBTParams = {
   value: MsgCreateSBT
+}
+
+type msgCreateSubAccountParams = {
+  value: MsgCreateSubAccount
 }
 
 export const registry = new Registry(msgTypes)
@@ -217,6 +239,47 @@ export const txClient = (
       }
     },
 
+    async sendMsgCreateSubAccount({
+      value,
+      gas = 0,
+      memo,
+    }: sendMsgCreateSubAccountParams): Promise<{ tx_bytes: string }> {
+      if (!signer) {
+        throw new Error(
+          'TxClient:sendMsgCreateSubAccount: Unable to sign Tx. Signer is not present.',
+        )
+      }
+      try {
+        const { address } = (await signer.getAccounts())[0]
+        const signingClient = await SigningStargateClient.offline(signer, { registry })
+        const msg = this.msgCreateSubAccount({
+          value: MsgCreateSubAccount.fromPartial(value),
+        })
+        const { gasUsed } = await this.simulateCreateSubAccountGas({ value })
+        if (!gasUsed) throw new Error('sendMsgCreateSubAccount: gasUsed error')
+
+        const fee = {
+          amount: [{ denom: 'umec', amount: getFinalGas(gasUsed, gas) }],
+          gas: getFinalGasLimit(gasUsed),
+        }
+        const signResult = await getSignData({
+          signingClient,
+          signer,
+          address,
+          msg,
+          fee,
+          memo,
+        })
+        if (!signResult.result || !signResult.rowRes) {
+          throw new Error('sendMsgCreateSubAccount: sign transaction error')
+        }
+
+        return await handleTxRaw(signResult.rowRes)
+      } catch (e: any) {
+        throw new Error('TxClient:sendMsgCreateSubAccount: Could not create Tx: ' + e.message)
+      }
+    },
+
     msgDeleteSBT({ value }: msgDeleteSBTParams): EncodeObject {
       try {
         return { typeUrl: '/metaearth.kyc.MsgDeleteSBT', value: MsgDeleteSBT.fromPartial(value) }
@@ -263,6 +326,47 @@ export const txClient = (
       } catch (e: any) {
         throw new Error('TxClient:MsgCreateSBT: Could not create message: ' + e.message)
       }
+    },
+
+    msgCreateSubAccount({ value }: msgCreateSubAccountParams): EncodeObject {
+      try {
+        return {
+          typeUrl: '/metaearth.kyc.MsgCreateSubAccount',
+          value: MsgCreateSubAccount.fromPartial(value),
+        }
+      } catch (e: any) {
+        throw new Error('TxClient:MsgCreateSubAccount: Could not create message: ' + e.message)
+      }
+    },
+
+    async simulateCreateSubAccountGas({
+      value,
+      gas = 50000,
+    }: {
+      value: MsgCreateSubAccount
+      gas?: string | number
+    }) {
+      if (!signer) {
+        throw new Error(
+          'TxClient:simulateCreateSubAccountGas: Unable to sign Tx. Signer is not present.',
+        )
+      }
+
+      const { address } = (await signer.getAccounts())[0]
+      const signingClient = await SigningStargateClient.offline(signer, { registry })
+      const msg = this.msgCreateSubAccount({
+        value: MsgCreateSubAccount.fromPartial(value),
+      })
+      const fee = {
+        amount: [{ denom: 'umec', amount: String(gas) }],
+        gas: gas_max_set,
+      }
+      const signResult = await getSignData({ signingClient, signer, address, msg, fee })
+      if (!signResult.result || !signResult.rowRes) {
+        throw new Error('simulateCreateSubAccountGas: sign transaction error')
+      }
+
+      return await getSimulateGas(await handleTxRaw(signResult.rowRes))
     },
   }
 }

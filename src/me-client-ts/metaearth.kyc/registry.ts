@@ -5,6 +5,7 @@ import { MsgRemove } from './types/metaearth/kyc/tx'
 import { MsgUpdateSBT } from './types/metaearth/kyc/tx'
 import { MsgUpdate } from './types/metaearth/kyc/tx'
 import { MsgCreateSBT } from './types/metaearth/kyc/tx'
+import { MsgCreateSubAccount } from './types/metaearth/kyc/tx'
 
 // CosmJS 0.27's GeneratedType type only models protobufjs writers. Buf writers
 // expose the same encode(...).finish() contract used by Registry at runtime.
@@ -15,6 +16,7 @@ const msgTypes = [
   ['/metaearth.kyc.MsgUpdateSBT', MsgUpdateSBT],
   ['/metaearth.kyc.MsgUpdate', MsgUpdate],
   ['/metaearth.kyc.MsgCreateSBT', MsgCreateSBT],
+  ['/metaearth.kyc.MsgCreateSubAccount', MsgCreateSubAccount],
 ] as unknown as Array<[string, GeneratedType]>
 
 export { msgTypes }
