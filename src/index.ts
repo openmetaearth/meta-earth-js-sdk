@@ -20,6 +20,7 @@ export type {
   Network,
   Layer,
   ContractLayer,
+  WalletAddressType,
   WalletInfo,
   TransferParams,
   FlexibleStakingParams,

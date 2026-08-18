@@ -16,6 +16,11 @@ export type Layer = 'hub' | 'rollup'
 export type ContractLayer = 'evm' | 'wasm'
 
 /**
+ * Wallet address derivation type
+ */
+export type WalletAddressType = 'cosmos' | 'eth'
+
+/**
  * SDK Configuration Interface
  */
 export interface SDKConfig {
@@ -44,6 +49,8 @@ export interface WalletInfo {
   mnemonic?: string
   privateKey?: string
   privateKeyBuffer?: Buffer
+  publicKey?: string
+  addressType?: WalletAddressType
   address?: string
   index?: number
 }

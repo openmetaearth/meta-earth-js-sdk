@@ -114,25 +114,29 @@ await sdk.initialize()
 
 ### Wallet Management (`sdk.wallet`)
 
-#### `createMnemonicWallet(mnemonic?)`
+#### `createMnemonicWallet(mnemonic?, index?, addressType?)`
 
-Create or import mnemonic wallet.
+Create or import a mnemonic wallet. `addressType` supports `'cosmos'` (default) and `'eth'`.
 
 ```typescript
 // Generate new wallet
 const wallet = await sdk.wallet.createMnemonicWallet()
-// Returns: { address, mnemonic, privateKey }
+// Returns: { address, addressType, publicKey, mnemonic, privateKey, ... }
 
 // Import existing mnemonic
 const wallet2 = await sdk.wallet.createMnemonicWallet('word1 word2 ...')
+
+// Generate an ETH-derived secp256k1 address encoded with the me Bech32 prefix
+const ethWallet = await sdk.wallet.createMnemonicWallet(undefined, 0, 'eth')
 ```
 
-#### `createPrivateKeyWallet(privateKey)`
+#### `createPrivateKeyWallet(privateKey, addressType?)`
 
-Create wallet from private key.
+Create wallet from a private key. The default remains the existing Cosmos address rule.
 
 ```typescript
 const wallet = await sdk.wallet.createPrivateKeyWallet('0x...')
+const ethWallet = await sdk.wallet.createPrivateKeyWallet('0x...', 'eth')
 ```
 
 #### `importWallet(data)`
@@ -142,8 +146,22 @@ Import wallet (supports mnemonic or private key).
 ```typescript
 const wallet = await sdk.wallet.importWallet({
   mnemonic: '...', // or privateKey: '...'
+  addressType: 'eth',
 })
 ```
+
+#### `batchCreateWallets(mnemonic, count, startIndex?, addressType?)`
+
+Derive multiple wallets from one mnemonic. `count` controls the number of returned addresses.
+
+```typescript
+const ethWallets = await sdk.wallet.batchCreateWallets('word1 word2 ...', 10, 0, 'eth')
+```
+
+Every generated wallet retains `addressType` and `publicKey`. `publicKey` is lowercase hex
+without a `0x` prefix: Cosmos uses a 33-byte compressed SEC1 public key, while ETH uses the
+64-byte `X || Y` coordinates without the leading `0x04`. The legacy `pubKeyAnyString` field
+remains the compressed Cosmos public key for compatibility.
 
 #### `convert0xToMeAddress(address)`
 
@@ -215,6 +233,10 @@ const txHash = await sdk.transaction.transfer({
   layer: 'hub', // or 'rollup'
 })
 ```
+
+Wallets created or imported with `addressType: 'eth'` automatically use Ethermint
+`ethsecp256k1` direct signing: SignDoc bytes are hashed with Keccak-256 and AuthInfo embeds
+`/ethermint.crypto.v1.ethsecp256k1.PubKey`. Cosmos wallets keep the existing signing path.
 
 #### `getTransaction(hash, layer?)`
 

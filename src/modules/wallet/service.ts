@@ -4,21 +4,32 @@
  */
 
 import type { Logger } from '../../utils/logger'
-import type { WalletInfo, BalanceInfo, Layer } from '../../types'
+import type { WalletInfo, BalanceInfo, Layer, WalletAddressType } from '../../types'
 import { WalletApi } from '../../api/wallet'
 import { instanceME } from '../common'
 // import { fromString } from 'uint8arrays'
 import { toBech32 } from '@cosmjs/encoding'
 import { rawSecp256k1PubkeyToRawAddress } from '@cosmjs/amino'
-import { DirectSecp256k1HdWallet, DirectSecp256k1Wallet } from '@cosmjs/proto-signing'
+import {
+  DirectSecp256k1HdWallet,
+  DirectSecp256k1Wallet,
+  type OfflineDirectSigner,
+} from '@cosmjs/proto-signing'
 import { PREFIX } from '../../config/define'
 import { toString } from 'uint8arrays/to-string'
 import bech32 from 'bech32'
 import { fromString } from 'uint8arrays'
+import * as secp256k1 from 'secp256k1'
+import { keccak_256 } from '@noble/hashes/sha3'
+import { createEthSecp256k1DirectSigner } from '../../me-client-utils/eth-secp256k1'
+
+export type { WalletAddressType } from '../../types'
 
 export type CreateMeWalletParams = {
   /** Account index, default is 0 */
   index?: number
+  /** Address derivation type, default preserves the Cosmos address rule */
+  addressType?: WalletAddressType
 } & (
   | {
       /** Mnemonic */
@@ -37,6 +48,13 @@ export type CreateMeWalletParams = {
 export interface MeWalletAccount {
   /** Wallet address */
   address: string
+  /** Address derivation type */
+  addressType: WalletAddressType
+  /**
+   * Address derivation public key as lowercase hex without 0x.
+   * Cosmos uses compressed SEC1 (33 bytes); ETH uses X || Y without 0x04 (64 bytes).
+   */
+  publicKey: string
   /** Mnemonic */
   mnemonic: string
   /** Mnemonic array */
@@ -45,7 +63,7 @@ export interface MeWalletAccount {
   privateKey: string
   /** Private key (Buffer) */
   privateKeyBuffer: any
-  /** Public key (string) */
+  /** Legacy compressed Cosmos public key as lowercase hex without 0x */
   pubKeyAnyString: string
   /** Address index */
   index: number
@@ -59,6 +77,7 @@ export interface MeWalletAccount {
  */
 export const createMeWallet = async (params: CreateMeWalletParams): Promise<MeWalletAccount> => {
   const index = params.index || 0
+  const addressType = params.addressType ?? 'cosmos'
   const mnemonic = 'mnemonic' in params ? params.mnemonic : undefined
   const priv = 'priv' in params ? params.priv : undefined
 
@@ -78,9 +97,11 @@ export const createMeWallet = async (params: CreateMeWalletParams): Promise<MeWa
       throw new Error('Unexpected error: mnemonic is missing')
     }
     const pubKeyAny = cosmosInstance.getPubKeyAny(privateKey)
-    const address = toBech32(PREFIX, rawSecp256k1PubkeyToRawAddress(pubKeyAny.value))
+    const { address, publicKey } = deriveWalletIdentity(privateKey, pubKeyAny.value, addressType)
     const account = {
       address,
+      addressType,
+      publicKey,
       mnemonic: mnemonic || '',
       mnemonicArr: mnemonic ? mnemonic.split(' ') : [],
       privateKey: privateKey ? toString(privateKey, 'base16') : '',
@@ -141,19 +162,21 @@ export class WalletService {
    * Create new mnemonic wallet
    * @param mnemonic - Optional: import if provided, otherwise generate new mnemonic
    * @param index - Optional: address index, default is 0
-   * @returns Promise<{ mnemonic: string; address: string; privKeyString: string; index: number }>
+   * @param addressType - Optional: address derivation type, default is cosmos
+   * @returns Complete wallet account including address type and public key
    */
   public async createMnemonicWallet(
     mnemonic?: string,
     index: number = 0,
-  ): Promise<{ mnemonic: string; address: string; privateKey: string; index: number }> {
+    addressType: WalletAddressType = 'cosmos',
+  ): Promise<MeWalletAccount> {
     this.ensureInitialized()
 
     try {
       this.logger.info('Creating mnemonic wallet...')
 
       const mnemonicToUse = mnemonic || (await this.generateMnemonic())
-      const walletAccount = await createMeWallet({ mnemonic: mnemonicToUse, index })
+      const walletAccount = await createMeWallet({ mnemonic: mnemonicToUse, index, addressType })
 
       this.wallets.set(walletAccount.address, walletAccount)
 
@@ -175,32 +198,24 @@ export class WalletService {
    * @param mnemonic - Mnemonic
    * @param count - Count to create
    * @param startIndex - Start index, default is 0
-   * @returns Promise<Array<{ address: string; index: number; privateKey: string }>>
+   * @param addressType - Optional: address derivation type, default is cosmos
+   * @returns Complete wallet accounts including address type and public key
    */
   public async batchCreateWallets(
     mnemonic: string,
     count: number,
     startIndex: number = 0,
-  ): Promise<Array<{ address: string; index: number; privateKey: string; mnemonic: string }>> {
+    addressType: WalletAddressType = 'cosmos',
+  ): Promise<MeWalletAccount[]> {
     this.ensureInitialized()
     try {
       this.logger.info(`Batch creating ${count} wallets starting from index ${startIndex}...`)
-      const wallets: Array<{
-        address: string
-        index: number
-        privateKey: string
-        mnemonic: string
-      }> = []
+      const wallets: MeWalletAccount[] = []
 
       for (let i = 0; i < count; i++) {
         const index = startIndex + i
-        const result = await this.createMnemonicWallet(mnemonic, index)
-        wallets.push({
-          mnemonic: result.mnemonic,
-          address: result.address,
-          index: result.index,
-          privateKey: result.privateKey,
-        })
+        const result = await this.createMnemonicWallet(mnemonic, index, addressType)
+        wallets.push(result)
       }
 
       return wallets
@@ -237,14 +252,21 @@ export class WalletService {
   /**
    * Create/Import wallet via private key
    * @param privateKey - Private key string (without 0x prefix)
-   * @returns Promise<{ address: string }>
+   * @param addressType - Optional: address derivation type, default is cosmos
+   * @returns Complete wallet account including address type and public key
    */
-  public async createPrivateKeyWallet(privateKey: string): Promise<{ address: string }> {
+  public async createPrivateKeyWallet(
+    privateKey: string,
+    addressType: WalletAddressType = 'cosmos',
+  ): Promise<MeWalletAccount> {
     this.ensureInitialized()
 
     try {
       this.logger.info('Creating private key wallet...')
-      const walletAccount = await createMeWallet({ priv: normalizeHexPrivateKey(privateKey) })
+      const walletAccount = await createMeWallet({
+        priv: normalizeHexPrivateKey(privateKey),
+        addressType,
+      })
 
       this.wallets.set(walletAccount.address, walletAccount)
 
@@ -261,15 +283,16 @@ export class WalletService {
 
   /**
    * Import wallet (supports mnemonic or private key)
-   * @param data - Object containing mnemonic or privateKey
-   * @returns Promise<{ address: string }>
+   * @param data - Object containing mnemonic or privateKey and optional addressType
+   * @returns Complete wallet account including address type and public key
    * @throws Error if neither mnemonic nor privateKey is provided
    */
   public async importWallet(data: {
     mnemonic?: string
     privateKey?: string
     index?: number
-  }): Promise<{ address: string }> {
+    addressType?: WalletAddressType
+  }): Promise<MeWalletAccount> {
     this.ensureInitialized()
 
     try {
@@ -281,9 +304,13 @@ export class WalletService {
 
       let walletAccount
       if (data.mnemonic) {
-        walletAccount = await this.createMnemonicWallet(data.mnemonic, data.index || 0)
+        walletAccount = await this.createMnemonicWallet(
+          data.mnemonic,
+          data.index || 0,
+          data.addressType,
+        )
       } else if (data.privateKey) {
-        walletAccount = await this.createPrivateKeyWallet(data.privateKey)
+        walletAccount = await this.createPrivateKeyWallet(data.privateKey, data.addressType)
       } else {
         throw new Error('Invalid wallet data')
       }
@@ -299,12 +326,17 @@ export class WalletService {
   /**
    * Export wallet information
    * @param address - Wallet address
-   * @returns Promise<{ mnemonic?: string; privateKey?: string }>
+   * @returns Exported wallet information including address type and public key
    * @throws Error if wallet not found
    */
-  public async exportWallet(
-    address: string,
-  ): Promise<{ mnemonic?: string; privateKey?: string; address: string; index?: number }> {
+  public async exportWallet(address: string): Promise<{
+    mnemonic?: string
+    privateKey?: string
+    publicKey?: string
+    addressType?: WalletAddressType
+    address: string
+    index?: number
+  }> {
     this.ensureInitialized()
 
     try {
@@ -318,6 +350,8 @@ export class WalletService {
       return {
         mnemonic: wallet.mnemonic,
         privateKey: wallet.privateKey,
+        publicKey: wallet.publicKey,
+        addressType: wallet.addressType,
         address,
         index: wallet.index,
       }
@@ -389,7 +423,7 @@ export class WalletService {
    * @param address - Address
    * @param privateKey - Private key
    * @param mnemonic - Mnemonic
-   * @returns DirectSecp256k1Wallet | DirectSecp256k1HdWallet
+   * @returns Direct signer matching the cached account address type
    */
   public async createDirectSecp256k1Wallet({
     address,
@@ -399,7 +433,7 @@ export class WalletService {
     address?: string
     privateKey?: string
     mnemonic?: string
-  }): Promise<DirectSecp256k1Wallet | DirectSecp256k1HdWallet> {
+  }): Promise<OfflineDirectSigner> {
     this.ensureInitialized()
     try {
       this.logger.info('Creating DirectSecp256k1 wallet...')
@@ -407,6 +441,17 @@ export class WalletService {
       // 1. Try to get from cache
       if (address) {
         const walletAccount = this.wallets.get(address)
+        if (walletAccount?.addressType === 'eth') {
+          const privateKeyBytes = walletAccount.privateKeyBuffer
+            ? new Uint8Array(walletAccount.privateKeyBuffer)
+            : walletAccount.privateKey
+              ? fromString(normalizeHexPrivateKey(walletAccount.privateKey), 'base16')
+              : undefined
+          if (!privateKeyBytes) {
+            throw new Error('The ETH-derived account has no private key')
+          }
+          return createEthSecp256k1DirectSigner(privateKeyBytes, address, PREFIX)
+        }
         if (walletAccount?.privateKeyBuffer) {
           return DirectSecp256k1Wallet.fromKey(
             new Uint8Array(walletAccount.privateKeyBuffer),
@@ -531,6 +576,31 @@ export function hexToCosmosAddress(hexAddress: string, prefix: string = 'me'): s
   } catch (error) {
     throw new Error(`Invalid hex address: ${hexAddress}. Error: ${error}`)
   }
+}
+
+function deriveWalletIdentity(
+  privateKey: Uint8Array,
+  compressedPublicKey: Uint8Array,
+  addressType: WalletAddressType,
+): { address: string; publicKey: string } {
+  if (addressType === 'cosmos') {
+    return {
+      address: toBech32(PREFIX, rawSecp256k1PubkeyToRawAddress(compressedPublicKey)),
+      publicKey: toString(compressedPublicKey, 'base16'),
+    }
+  }
+
+  if (addressType === 'eth') {
+    // Ethereum hashes the uncompressed X/Y coordinates without the 0x04 format byte.
+    const publicKey = secp256k1.publicKeyCreate(privateKey, false).slice(1)
+    const publicKeyHash = keccak_256(publicKey)
+    return {
+      address: toBech32(PREFIX, publicKeyHash.slice(-20)),
+      publicKey: toString(publicKey, 'base16'),
+    }
+  }
+
+  throw new Error(`Unsupported wallet address type: ${String(addressType)}`)
 }
 
 function normalizeHexPrivateKey(privateKey: string): string {

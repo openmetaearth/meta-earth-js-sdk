@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { Mock } from 'vitest'
-import { WalletService } from '../src/modules/wallet/service'
+import {
+  createMeWallet,
+  WalletService,
+  type WalletAddressType,
+} from '../src/modules/wallet/service'
 import { Logger } from '../src/utils/logger'
 import { HttpClient } from '../src/utils/http-client'
 import { WalletApi } from '../src/api/wallet'
@@ -8,6 +12,11 @@ import { WalletApi } from '../src/api/wallet'
 const testMnemonic = `must utility suit notable parade author bone near blush design dream duck`
 const testPriv = `2b522b5191b5ed1420abfdc860146aecbe086f4397179aac28acbc9ab7eff5c7`
 const testAddress = `me1ec50cpu4rwwpr2thku5hrhksxvkcdah3y95ehj`
+const testEthAddress = `me1ukskhxdz5vy2sqrvps5cgc8n720wsmqqxkrdan`
+const testCosmosPublicKey = `02447374a29a72685072fc0106ca0d90928e9d47d12938d5d83f1e38f94b15b0a1`
+const testEthPublicKey =
+  `447374a29a72685072fc0106ca0d90928e9d47d12938d5d83f1e38f94b15b0a1` +
+  `160c834355aed7fbb117c1a2a5b93e50bd3eb2cd509396de61fe87ddc9d88ec2`
 const test0xAddress = `0xce28fc07951b9c11a977b72971ded0332d86f6f1`
 
 describe('WalletService', () => {
@@ -63,7 +72,21 @@ describe('WalletService', () => {
       expect(result).toHaveProperty('address')
       expect(typeof result.address).toBe('string')
       expect(result.address).toMatch(/^me1/) // The implementation currently uses the me1 prefix
+      expect(result.address).toBe(testAddress)
+      expect(result.addressType).toBe('cosmos')
+      expect(result.publicKey).toBe(testCosmosPublicKey)
+      expect(result.pubKeyAnyString).toBe(testCosmosPublicKey)
       expect(result.mnemonic).toBe(testMnemonic) // It should return the same mnemonic
+    })
+
+    it('should create an ETH-derived address from a mnemonic', async () => {
+      const result = await service.createMnemonicWallet(testMnemonic, 0, 'eth')
+
+      expect(result.address).toBe(testEthAddress)
+      expect(result.address).not.toBe(testAddress)
+      expect(result.addressType).toBe('eth')
+      expect(result.publicKey).toBe(testEthPublicKey)
+      expect(result.pubKeyAnyString).toBe(testCosmosPublicKey)
     })
 
     it('should create different wallets for different indices', async () => {
@@ -132,6 +155,18 @@ describe('WalletService', () => {
       expect(result[0].index).toBe(startIndex)
       expect(result[result.length - 1].index).toBe(startIndex + count - 1)
     })
+
+    it('should batch create the requested number of ETH-derived addresses', async () => {
+      const count = 3
+      const result = await service.batchCreateWallets(testMnemonic, count, 0, 'eth')
+
+      expect(result).toHaveLength(count)
+      expect(result[0].address).toBe(testEthAddress)
+      expect(result[0].addressType).toBe('eth')
+      expect(result[0].publicKey).toBe(testEthPublicKey)
+      expect(result.every((wallet) => wallet.publicKey.length === 128)).toBe(true)
+      expect(new Set(result.map((wallet) => wallet.address)).size).toBe(count)
+    })
   })
 
   describe('createPrivateKeyWallet', () => {
@@ -152,6 +187,14 @@ describe('WalletService', () => {
       const result = await service.createPrivateKeyWallet(`0x${testPriv}`)
 
       expect(result.address).toBe(testAddress)
+    })
+
+    it('should derive an ETH address from a private key', async () => {
+      const result = await service.createPrivateKeyWallet(testPriv, 'eth')
+
+      expect(result.address).toBe(testEthAddress)
+      expect(result.addressType).toBe('eth')
+      expect(result.publicKey).toBe(testEthPublicKey)
     })
   })
 
@@ -181,8 +224,55 @@ describe('WalletService', () => {
       expect(typeof result.address).toBe('string')
     })
 
+    it('should import an ETH-derived wallet from a mnemonic or private key', async () => {
+      const mnemonicResult = await service.importWallet({
+        mnemonic: testMnemonic,
+        addressType: 'eth',
+      })
+      const privateKeyResult = await service.importWallet({
+        privateKey: `0x${testPriv}`,
+        addressType: 'eth',
+      })
+
+      expect(mnemonicResult.address).toBe(testEthAddress)
+      expect(privateKeyResult.address).toBe(testEthAddress)
+      expect(mnemonicResult.publicKey).toBe(testEthPublicKey)
+      expect(privateKeyResult.publicKey).toBe(testEthPublicKey)
+    })
+
     it('should throw error if neither mnemonic nor private key provided', async () => {
       await expect(service.importWallet({})).rejects.toThrow()
+    })
+  })
+
+  describe('createMeWallet', () => {
+    it('should match the Ethereum private-key-one address vector encoded as me Bech32', async () => {
+      const result = await createMeWallet({
+        priv: '0000000000000000000000000000000000000000000000000000000000000001',
+        addressType: 'eth',
+      })
+
+      expect(result.address).toBe('me10e0525sfrf53yh2aljmm3sn9jq5njk7lhnp0zx')
+      expect(result.addressType).toBe('eth')
+      expect(result.publicKey).toHaveLength(128)
+      expect(result.publicKey.startsWith('04')).toBe(false)
+    })
+
+    it('should reject unsupported address types at runtime', async () => {
+      await expect(
+        createMeWallet({ priv: testPriv, addressType: 'unsupported' as WalletAddressType }),
+      ).rejects.toThrow('Unsupported wallet address type')
+    })
+  })
+
+  describe('createDirectSecp256k1Wallet', () => {
+    it('keeps the ETH-derived address when creating its direct signer', async () => {
+      const wallet = await service.createPrivateKeyWallet(testPriv, 'eth')
+      const signer = await service.createDirectSecp256k1Wallet({ address: wallet.address })
+      const [account] = await signer.getAccounts()
+
+      expect(account.address).toBe(testEthAddress)
+      expect(Buffer.from(account.pubkey).toString('hex')).toBe(testCosmosPublicKey)
     })
   })
 
@@ -192,6 +282,8 @@ describe('WalletService', () => {
       wallets.set(testAddress, {
         mnemonic: testMnemonic,
         privateKey: testPriv,
+        publicKey: testCosmosPublicKey,
+        addressType: 'cosmos',
       })
       const mockHttpClient = {
         get: vi.fn().mockResolvedValue({ data: {} }),
@@ -226,6 +318,8 @@ describe('WalletService', () => {
       // Assertions
       expect(result).toHaveProperty('mnemonic', testMnemonic)
       expect(result).toHaveProperty('privateKey', testPriv)
+      expect(result).toHaveProperty('publicKey', testCosmosPublicKey)
+      expect(result).toHaveProperty('addressType', 'cosmos')
       expect(result.mnemonic).toBe(testMnemonic)
       expect(result.privateKey).toBe(testPriv)
     })
