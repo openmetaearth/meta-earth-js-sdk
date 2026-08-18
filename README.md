@@ -1,13 +1,13 @@
 # Meta Earth JS SDK
 
-A feature-complete TypeScript SDK for Meta Earth blockchain wallet management, transactions, staking, and governance. Supports both browser and Node.js environments.
+A feature-complete TypeScript SDK for Meta Earth wallet management, Cosmos and ETH-derived accounts, transactions, ME ID, sub-accounts, staking, governance, and contracts. Supports both browser and Node.js environments.
 
 ## Feature Status
 
 | Module | Implemented Features | Status |
 | ------------ | ------------------------------------------------------------ | --------- |
-| **Wallet Management** | Mnemonic generation, wallet creation, batch creation, import/export, address conversion, balance query | 100% |
-| **Transaction** | Transfer, transaction query, Gas simulation | 100% |
+| **Wallet Management** | Cosmos and ETH-derived addresses, mnemonic/private-key import, batch derivation, public-key retention, balance query | 100% |
+| **Transaction** | Transfer, Cosmos/Ethermint signing, transaction query, gas simulation and fee calculation | 100% |
 | **ME ID / Sub-accounts** | Bind Cosmos and ETH-derived accounts, query by address, ME ID, or sub-account | 100% |
 | **Network Info** | Node version query, network status query | 100% |
 | **Staking** | Flexible staking, unstake, query delegation, query rewards, claim rewards | 100% |
@@ -45,14 +45,14 @@ console.log('Address:', wallet.address)
 console.log('Mnemonic:', wallet.mnemonic)
 
 // Query balance
-const balance = await sdk.transaction.getBalance(wallet.address, 'umec')
+const balance = await sdk.wallet.getBalance(wallet.address, 'hub')
 console.log('Balance:', balance)
 
 // Transfer
 const txHash = await sdk.transaction.transfer({
   fromAddress: wallet.address,
-  toAddress: 'metaearth1...',
-  amount: { amount: '1000000', denom: 'umec' },
+  toAddress: 'me1...',
+  amount: [{ amount: '1000000', denom: 'umec' }],
   layer: 'hub',
 })
 console.log('Transaction Hash:', txHash)
@@ -75,7 +75,7 @@ async function main() {
   console.log('ME Address:', meAddr)
 
   // Query node version
-  const nodeInfo = await sdk.transaction.getNodeInfo('hub')
+  const nodeInfo = await sdk.wallet.getNodeVersion('hub')
   console.log('Node Version:', nodeInfo)
 }
 
@@ -95,7 +95,7 @@ Create SDK instance.
 ```typescript
 const sdk = new MetaEarthSDK({
   config: {
-    timeout?: number     // Request timeout (default: 10000ms)
+    timeout?: number     // Request timeout (default: 60000ms)
     debug?: boolean      // Enable debug logs (default: false)
     network?: Network    // Network type ('testnet' / 'mainnet')
     layer?: Layer        // Default layer ('hub' / 'rollup')
@@ -177,7 +177,7 @@ const meAddr = sdk.wallet.convert0xToMeAddress('0x...')
 Convert ME address to 0x format.
 
 ```typescript
-const ethAddr = sdk.wallet.convertMeTo0xAddress('metaearth1...')
+const ethAddr = sdk.wallet.convertMeTo0xAddress('me1...')
 ```
 
 #### `getWalletAddresses()`
@@ -193,7 +193,7 @@ const addresses = sdk.wallet.getWalletAddresses()
 Query address balance.
 
 ```typescript
-const balance = await sdk.wallet.getBalance('metaearth1...', 'hub')
+const balance = await sdk.wallet.getBalance('me1...', 'hub')
 ```
 
 **API Endpoint**: `/cosmos/bank/v1beta1/balances/${address}`
@@ -228,8 +228,8 @@ Send transfer transaction (supports HUB and Rollup layers).
 
 ```typescript
 const txHash = await sdk.transaction.transfer({
-  fromAddress: 'metaearth1...',
-  toAddress: 'metaearth1...',
+  fromAddress: 'me1...',
+  toAddress: 'me1...',
   amount: [{ amount: '1000000', denom: 'umec' }],
   layer: 'hub', // or 'rollup'
 })
@@ -261,6 +261,19 @@ console.log('Estimated Gas:', result.gas_info.gas_used)
 ```
 
 **API Endpoint**: `/cosmos/tx/v1beta1/simulate`
+
+#### Gas and fee calculation
+
+Transactions that use the SDK simulation path apply the same policy as the wallet runtime:
+
+```text
+gasLimit = ceil(simulatedGas × 1.5)
+fee      = ceil(gasLimit × 0.02)
+```
+
+When the calculated fee is less than or equal to `10000 umec`, the SDK uses the minimum fee plus
+an integer offset from `0` to `999 umec`. Generated client method signatures retain their legacy
+custom-gas argument for compatibility, but callers cannot override this shared formula.
 
 ---
 
@@ -321,7 +334,7 @@ Flexible staking (HUB layer).
 
 ```typescript
 const txHash = await sdk.staking.stakeFlexible({
-  address: 'metaearth1...',
+  address: 'me1...',
   amount: { amount: '1000000', denom: 'umec' },
   layer: 'hub',
 })
@@ -333,7 +346,7 @@ Unstake flexible staking (HUB layer).
 
 ```typescript
 const txHash = await sdk.staking.unstakeFlexible({
-  address: 'metaearth1...',
+  address: 'me1...',
   amount: { amount: '1000000', denom: 'umec' },
   layer: 'hub',
 })
@@ -344,7 +357,7 @@ const txHash = await sdk.staking.unstakeFlexible({
 Query flexible delegation.
 
 ```typescript
-const delegation = await sdk.staking.getFlexibleDelegation('metaearth1...', 'hub')
+const delegation = await sdk.staking.getFlexibleDelegation('me1...', 'hub')
 ```
 
 **API Endpoint**: `/metaearth/wstaking/delegation/{delegator_addr}`
@@ -354,7 +367,7 @@ const delegation = await sdk.staking.getFlexibleDelegation('metaearth1...', 'hub
 Query flexible delegation rewards.
 
 ```typescript
-const rewards = await sdk.staking.getFlexibleDelegationRewards('metaearth1...', 'hub')
+const rewards = await sdk.staking.getFlexibleDelegationRewards('me1...', 'hub')
 ```
 
 **API Endpoint**: `/metaearth/wstaking/delegation-rewards/{delegator_address}`
@@ -364,7 +377,7 @@ const rewards = await sdk.staking.getFlexibleDelegationRewards('metaearth1...', 
 Claim flexible staking rewards (HUB layer).
 
 ```typescript
-const txHash = await sdk.staking.claimStakingReward('metaearth1...')
+const txHash = await sdk.staking.claimStakingReward('me1...')
 ```
 
 ---
@@ -615,9 +628,9 @@ sdk.setNetwork('mainnet')
 ```typescript
 try {
   const txHash = await sdk.transaction.transfer({
-    fromAddress: 'metaearth1...',
-    toAddress: 'metaearth1...',
-    amount: { amount: '1000000', denom: 'umec' },
+    fromAddress: 'me1...',
+    toAddress: 'me1...',
+    amount: [{ amount: '1000000', denom: 'umec' }],
     layer: 'hub',
   })
   console.log('Transfer successful:', txHash)
