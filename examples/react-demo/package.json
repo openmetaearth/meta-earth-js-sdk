@@ -12,6 +12,7 @@
     "clean": "rimraf node_modules/.vite"
   },
   "dependencies": {
+    "@ant-design/icons": "6.1.0",
     "antd": "^6.0.0",
     "meta-earth-js-sdk": "file:../..",
     "react": "^19.2.0",
