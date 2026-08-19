@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Contract, ContractFactory, JsonRpcProvider } from 'ethers'
 import { EvmContractApi } from '../src/api/evm-contract'
+import { TEST_NET_CONFIG } from '../src/config/define'
 import { ContractService } from '../src/modules/contract/service'
 
 const contractAddress = '0x1111111111111111111111111111111111111111'
@@ -10,15 +11,32 @@ describe('EVM contract runtime', () => {
     vi.restoreAllMocks()
   })
 
+  it('uses the public testnet endpoints and EVM chain ID by default', () => {
+    expect(TEST_NET_CONFIG).toMatchObject({
+      evmRpcUrl: 'http://118.175.0.249:8545',
+      evmChainId: 400,
+      hub: {
+        restfulUrl: 'http://118.175.0.249:1317',
+        rpcUrl: 'http://118.175.0.249:26657',
+        grpcUrl: 'http://118.175.0.249:9090',
+      },
+      rollup: {
+        restfulUrl: 'http://118.175.0.249:3317',
+        rpcUrl: 'http://118.175.0.249:46657',
+        grpcUrl: 'http://118.175.0.249:9290',
+      },
+    })
+  })
+
   it('validates the configured EVM chain ID', async () => {
-    vi.spyOn(JsonRpcProvider.prototype, 'getNetwork').mockResolvedValue({ chainId: 2405n } as any)
+    vi.spyOn(JsonRpcProvider.prototype, 'getNetwork').mockResolvedValue({ chainId: 401n } as any)
     const api = new EvmContractApi(() => ({
       rpcUrl: 'http://localhost:8545',
-      chainId: 2404,
+      chainId: 400,
     }))
 
     await expect(api.getProvider()).rejects.toThrow(
-      'EVM chain ID mismatch: expected 2404, received 2405',
+      'EVM chain ID mismatch: expected 400, received 401',
     )
     api.destroy()
   })
