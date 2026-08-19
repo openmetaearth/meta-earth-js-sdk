@@ -1,6 +1,6 @@
 # Meta Earth JS SDK
 
-A feature-complete TypeScript SDK for Meta Earth wallet management, Cosmos and ETH-derived accounts, transactions, ME ID, sub-accounts, staking, governance, and contracts. Supports both browser and Node.js environments.
+A TypeScript SDK for Meta Earth wallet management, Cosmos and ETH-derived accounts, transactions, ME ID, sub-accounts, staking, governance, and contracts. Supports both browser and Node.js environments.
 
 ## Feature Status
 
@@ -13,6 +13,9 @@ A feature-complete TypeScript SDK for Meta Earth wallet management, Cosmos and E
 | **Staking** | Flexible staking, unstake, query delegation, query rewards, claim rewards | 100% |
 | **Governance** | Query proposals, submit proposals, vote on proposals | 100% |
 | **WASM Contract** | Store code, deploy contract, execute contract, query contract, query by creator/CodeID | 100% |
+| **EVM Contract** | Deploy bytecode, execute methods, query methods, inspect contract bytecode and balance | Implemented* |
+
+\* Testnet includes default EVM RPC settings. Mainnet EVM operations require explicit `evmRpcUrl` and `evmChainId` configuration.
 
 ---
 
@@ -42,7 +45,7 @@ await sdk.initialize()
 // Create wallet
 const wallet = await sdk.wallet.createMnemonicWallet()
 console.log('Address:', wallet.address)
-console.log('Mnemonic:', wallet.mnemonic)
+// Never log or transmit wallet.mnemonic or wallet.privateKey. Store recovery material securely.
 
 // Query balance
 const balance = await sdk.wallet.getBalance(wallet.address, 'hub')
@@ -99,6 +102,8 @@ const sdk = new MetaEarthSDK({
     debug?: boolean      // Enable debug logs (default: false)
     network?: Network    // Network type ('testnet' / 'mainnet')
     layer?: Layer        // Default layer ('hub' / 'rollup')
+    evmRpcUrl?: string   // Optional EVM JSON-RPC override
+    evmChainId?: number  // Expected EVM chain ID for RPC validation
   }
 })
 ```
@@ -417,7 +422,7 @@ Submit a software upgrade proposal.
 
 ```typescript
 const txHash = await sdk.governance.submitSoftwareUpgradeProposal({
-  proposer: 'mec1...',
+  proposer: 'me1...',
   content: {
     title: 'Upgrade to v2.0.0',
     description: 'Upgrade description...',
@@ -439,7 +444,7 @@ Vote on a proposal.
 ```typescript
 const txHash = await sdk.governance.voteProposal({
   proposalId: 1,
-  voter: 'mec1...',
+  voter: 'me1...',
   option: 'yes', // 'yes' | 'no' | 'abstain' | 'no_with_veto'
 })
 console.log('Transaction Hash:', txHash)
@@ -447,7 +452,7 @@ console.log('Transaction Hash:', txHash)
 
 ---
 
-### Contract Operations (`sdk.contract`)
+### WASM Contract Operations (`sdk.contract`)
 
 #### `storeCode(params)`
 
@@ -556,6 +561,98 @@ console.log('Candy Info:', candy.data)
 
 ---
 
+### EVM Contract Operations (`sdk.contract`)
+
+EVM contract operations use Ethers.js and an EVM JSON-RPC endpoint. The testnet defaults to `http://118.175.0.249:8545` with chain ID `400`. Override both values together when using another endpoint:
+
+```typescript
+const sdk = new MetaEarthSDK({
+  config: {
+    network: 'testnet',
+    evmRpcUrl: 'https://your-evm-rpc.example.com',
+    evmChainId: 1234,
+  },
+})
+
+await sdk.initialize()
+```
+
+The `sender` for deployment and state-changing calls must be an ETH-derived `me1` account already created or imported through `sdk.wallet`. Its private key stays in the wallet service and is used only for local transaction signing.
+
+The examples below assume `ethWallet` was created or imported with `addressType: 'eth'`, while `abi` and `bytecode` come from the target contract's compiler artifact. Never hardcode production private keys in application source.
+
+#### `deployEvmContract(params)`
+
+Deploy compiled EVM bytecode with its ABI and constructor arguments:
+
+```typescript
+const deployment = await sdk.contract.deployEvmContract({
+  sender: ethWallet.address,
+  abi,
+  bytecode,
+  constructorArgs: ['MetaEarth Token', 'MEC', 18, '1000000'],
+})
+
+console.log('Contract Address:', deployment.contractAddress)
+console.log('Transaction Hash:', deployment.transactionHash)
+```
+
+#### `executeEvmContract(params)`
+
+Execute a state-changing method. Use the full signature when the ABI contains overloaded methods:
+
+```typescript
+const execution = await sdk.contract.executeEvmContract({
+  sender: ethWallet.address,
+  contractAddress: deployment.contractAddress,
+  abi,
+  method: 'transfer(address,uint256)',
+  args: ['0xRecipient...', '1000000000000000000'],
+  value: '0', // wei, optional
+})
+
+console.log('Transaction Hash:', execution.transactionHash)
+```
+
+The SDK performs an `eth_call` preflight by default before broadcasting. Set `simulate: false` only when the target method cannot be simulated safely.
+
+#### `queryEvmContract(params)`
+
+Call a read-only contract method through `eth_call`:
+
+```typescript
+const balance = await sdk.contract.queryEvmContract({
+  contractAddress: deployment.contractAddress,
+  abi,
+  method: 'balanceOf',
+  args: ['0xOwner...'],
+})
+
+console.log('Token Balance:', String(balance))
+```
+
+#### `getEvmContractInfo(contractAddress)`
+
+Inspect an EVM address without an ABI:
+
+```typescript
+const info = await sdk.contract.getEvmContractInfo(deployment.contractAddress)
+console.log({
+  address: info.address,
+  chainId: info.chainId.toString(),
+  isContract: info.isContract,
+  bytecode: info.bytecode,
+  balance: info.balance.toString(),
+  transactionCount: info.transactionCount,
+})
+```
+
+An address alone can only provide RPC-level information such as bytecode and native balance. Querying contract state or methods requires the contract ABI. For deployments and writes, gas is estimated automatically and a 20% margin is applied; `gasLimit`, EIP-1559 fee fields, `nonce`, and `confirmations` can be supplied explicitly when needed.
+
+Browser applications served over HTTPS must use an HTTPS EVM RPC endpoint; browsers block calls from an HTTPS page to the default HTTP testnet endpoint as mixed content.
+
+---
+
 ## Utility Functions
 
 ### Environment Detection
@@ -590,8 +687,8 @@ The project includes a complete React + TypeScript demo application showcasing a
 
 ```bash
 cd examples/react-demo
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Visit http://localhost:5173
@@ -603,8 +700,13 @@ Visit http://localhost:5173
 - **Transaction Panel** - HUB and Rollup layer transfers
 - **Staking Panel** - Stake, unstake, query delegation, query rewards, claim rewards
 - **Governance Panel** - Query proposals (V1)
-- **Contract Panel** - Store code, instantiate contract, execute contract
+- **WASM Contract Panel** - Store code, instantiate contract, execute contract
+- **EVM Contract Panel** - Deploy bytecode, execute methods, query methods, inspect addresses
 - **Real-time Log System** - View all operation logs
+
+The EVM panel includes a complete `ERC20Token.sol` example. Its ABI, Paris-compatible bytecode, and constructor arguments are preloaded. After a successful deployment, the new contract address and matching `mint`/`balanceOf` examples are copied into the Execute and Query tabs automatically.
+
+The Solidity source and generated artifact are located under `examples/react-demo/src/evm`. `pnpm run compile:evm-example` regenerates the artifact, and both `dev` and `build` run this compilation automatically.
 
 ---
 
@@ -635,7 +737,7 @@ try {
   })
   console.log('Transfer successful:', txHash)
 } catch (error) {
-  console.error('Transfer failed:', error.message)
+  console.error('Transfer failed:', error instanceof Error ? error.message : String(error))
 }
 ```
 
@@ -666,7 +768,7 @@ console.log('Environment:', sdk.getEnvironment())
 
 ### Q: Which networks does the SDK support?
 
-**A**: Supports Meta Earth testnet (`testnet`) and mainnet (`mainnet`). Defaults to testnet.
+**A**: Supports Meta Earth testnet (`testnet`) and mainnet (`mainnet`). Defaults to testnet. Testnet includes default EVM RPC settings; mainnet EVM operations require explicit `evmRpcUrl` and `evmChainId` overrides.
 
 ### Q: What is a Layer?
 
@@ -683,16 +785,20 @@ Most operations execute on the HUB layer by default.
 
 ### Q: Can I use this in production?
 
-**A**: Yes. All implemented features have been tested, but we recommend thorough testing on testnet before deploying to mainnet.
+**A**: Perform an application-specific security review and testnet validation before production use. Configure and verify the expected EVM RPC and chain ID explicitly for mainnet; the included EVM write workflow has not been validated through a live mainnet deployment.
 
 ### Q: What contract operations are supported?
 
-**A**: Currently supports the complete WASM contract lifecycle:
+**A**: Supports both WASM and EVM contract operations:
 
 - `storeCode` - Store contract code
 - `deployContract` - Instantiate contract
 - `executeContract` - Execute contract
 - `getCodeIdByHash` - Find Code ID by hash
+- `deployEvmContract` - Deploy EVM bytecode with Ethers.js
+- `executeEvmContract` - Sign and send an EVM contract transaction
+- `queryEvmContract` - Call an EVM contract read method
+- `getEvmContractInfo` - Inspect EVM bytecode, balance, and address metadata
 
 ---
 
@@ -703,6 +809,7 @@ Most operations execute on the HUB layer by default.
 ```
 src/
 ├── sdk.ts                    # Main SDK class
+├── types.ts                  # Public SDK types
 ├── modules/                  # Feature modules
 │   ├── wallet/
 │   │   └── service.ts       # Wallet service
@@ -712,20 +819,26 @@ src/
 │   │   └── service.ts       # Staking service
 │   ├── governance/
 │   │   └── service.ts       # Governance service
-│   └── contract/
-│       └── service.ts       # Contract service
+│   ├── contract/
+│   │   └── service.ts       # WASM and EVM contract service
+│   └── identity/
+│       └── service.ts       # ME ID and sub-account service
 ├── api/                     # API layer
 │   ├── wallet.ts
 │   ├── transaction.ts
 │   ├── staking.ts
 │   ├── governance.ts
-│   └── types.ts            # API type definitions
+│   ├── identity.ts
+│   ├── contract.ts
+│   ├── evm-contract.ts
+│   └── types.ts             # API type definitions
 ├── types/                   # Type definitions
 │   ├── base.ts
 │   ├── wallet.ts
 │   ├── transaction.ts
 │   ├── staking.ts
-│   └── governance.ts
+│   ├── governance.ts
+│   └── contract.ts
 └── utils/                   # Utility functions
     ├── http-client.ts
     ├── logger.ts
@@ -737,7 +850,7 @@ src/
 - **Language**: TypeScript 5.3+
 - **Build**: Vite 5.0 + Rollup
 - **Blockchain**: @cosmjs/\* (0.31.3)
-- **Cryptography**: ethers.js ^6.15.0, secp256k1, bip39
+- **Cryptography**: ethers.js ^6.17.0, secp256k1, bip39
 - **Testing**: Vitest
 - **UI Demo**: React + Ant Design 6.0
 
