@@ -107,6 +107,10 @@ export class MetaEarthSDK {
       this.httpClient,
       this.wallet,
       ensureInitialized,
+      () => ({
+        rpcUrl: this.config.evmRpcUrl ?? this.networkConfig.evmRpcUrl,
+        chainId: this.config.evmChainId ?? this.networkConfig.evmChainId,
+      }),
     )
 
     this.identity = new IdentityService(
@@ -217,6 +221,7 @@ export class MetaEarthSDK {
    */
   public destroy(): void {
     this.logger.info('Destroying SDK...')
+    this.contract.destroy()
     this._isInitialized = false
     this.logger.info('SDK destroyed')
   }

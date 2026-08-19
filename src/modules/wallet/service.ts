@@ -22,6 +22,7 @@ import { fromString } from 'uint8arrays'
 import * as secp256k1 from 'secp256k1'
 import { keccak_256 } from '@noble/hashes/sha3'
 import { createEthSecp256k1DirectSigner } from '../../me-client-utils/eth-secp256k1'
+import { Wallet, getAddress, type Provider } from 'ethers'
 
 export type { WalletAddressType } from '../../types'
 
@@ -484,6 +485,35 @@ export class WalletService {
       throw error
     }
   }
+
+  /** Create an ethers signer for a cached ETH-derived account without exposing its private key. */
+  public async createEvmWallet(address: string, provider: Provider): Promise<Wallet> {
+    this.ensureInitialized()
+    const walletAccount = this.wallets.get(address)
+    if (!walletAccount) {
+      throw new Error(`Wallet not found: ${address}`)
+    }
+    if (walletAccount.addressType !== 'eth') {
+      throw new Error('EVM signing requires an ETH-derived account')
+    }
+
+    const privateKey = walletAccount.privateKey
+      ? normalizeHexPrivateKey(walletAccount.privateKey)
+      : walletAccount.privateKeyBuffer
+        ? toString(new Uint8Array(walletAccount.privateKeyBuffer), 'base16')
+        : ''
+    if (!privateKey) {
+      throw new Error('The ETH-derived account has no private key')
+    }
+
+    const signer = new Wallet(`0x${privateKey}`, provider)
+    const expectedAddress = getAddress(this.convertMeTo0xAddress(address))
+    if (signer.address !== expectedAddress) {
+      throw new Error(`Private key does not match ETH-derived address ${address}`)
+    }
+    return signer
+  }
+
   /**
    * Get node version info (RPC)
    * @param layer Target layer (default 'hub')

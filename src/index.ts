@@ -32,6 +32,13 @@ export type {
   DeployContractParams,
   ExecuteContractParams,
   BalanceInfo,
+  EvmTransactionOptions,
+  DeployEvmContractParams,
+  ExecuteEvmContractParams,
+  QueryEvmContractParams,
+  EvmDeploymentResult,
+  EvmExecutionResult,
+  EvmContractInfo,
 } from './types'
 
 // Export utility functions

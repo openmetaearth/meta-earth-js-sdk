@@ -1,4 +1,5 @@
 import { MsgSubmitProposal } from './me-client-ts/cosmos.gov.v1beta1/module'
+import type { BigNumberish, BlockTag, BytesLike, InterfaceAbi, TransactionReceipt } from 'ethers'
 
 /**
  * Network Type
@@ -28,6 +29,10 @@ export interface SDKConfig {
   debug?: boolean
   network?: Network
   layer?: Layer
+  /** Optional EVM JSON-RPC override. */
+  evmRpcUrl?: string
+  /** Expected EVM chain ID used to reject a mismatched RPC endpoint. */
+  evmChainId?: number
 }
 
 /**
@@ -199,6 +204,75 @@ export interface StoreCodeParams {
   instantiatePermission?: any
   layer?: ContractLayer
   networkLayer?: Layer
+}
+
+/**
+ * Common EVM transaction overrides. Amounts use wei-compatible BigNumberish values.
+ */
+export interface EvmTransactionOptions {
+  value?: BigNumberish
+  gasLimit?: BigNumberish
+  maxFeePerGas?: BigNumberish
+  maxPriorityFeePerGas?: BigNumberish
+  nonce?: number
+  confirmations?: number
+}
+
+/**
+ * EVM contract deployment parameters.
+ */
+export interface DeployEvmContractParams extends EvmTransactionOptions {
+  /** Cached me1 ETH-derived account used for local signing. */
+  sender: string
+  abi: InterfaceAbi
+  bytecode: BytesLike | { object: string }
+  constructorArgs?: readonly unknown[]
+}
+
+/**
+ * EVM contract state-changing method parameters.
+ */
+export interface ExecuteEvmContractParams extends EvmTransactionOptions {
+  /** Cached me1 ETH-derived account used for local signing. */
+  sender: string
+  contractAddress: string
+  abi: InterfaceAbi
+  /** Use a full signature such as transfer(address,uint256) for overloaded methods. */
+  method: string
+  args?: readonly unknown[]
+  /** Run an eth_call preflight before broadcasting, enabled by default. */
+  simulate?: boolean
+}
+
+/**
+ * Read-only EVM contract method parameters.
+ */
+export interface QueryEvmContractParams {
+  contractAddress: string
+  abi: InterfaceAbi
+  method: string
+  args?: readonly unknown[]
+  blockTag?: BlockTag
+}
+
+export interface EvmDeploymentResult {
+  contractAddress: string
+  transactionHash: string
+  receipt: TransactionReceipt
+}
+
+export interface EvmExecutionResult {
+  transactionHash: string
+  receipt: TransactionReceipt
+}
+
+export interface EvmContractInfo {
+  address: string
+  chainId: bigint
+  isContract: boolean
+  bytecode: string
+  balance: bigint
+  transactionCount: number
 }
 
 /**

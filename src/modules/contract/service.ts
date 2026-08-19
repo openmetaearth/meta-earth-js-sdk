@@ -6,8 +6,20 @@
 import { Logger } from '../../utils/logger'
 import { HttpClient } from '../../utils/http-client'
 import { ContractApi } from '../../api/contract'
+import { EvmContractApi } from '../../api/evm-contract'
 import { WalletService } from '../wallet/service'
-import { StoreCodeParams, DeployContractParams, ExecuteContractParams, Layer } from '../../types'
+import type {
+  StoreCodeParams,
+  DeployContractParams,
+  ExecuteContractParams,
+  Layer,
+  DeployEvmContractParams,
+  ExecuteEvmContractParams,
+  QueryEvmContractParams,
+  EvmDeploymentResult,
+  EvmExecutionResult,
+  EvmContractInfo,
+} from '../../types'
 
 /**
  * Contract Service Class
@@ -17,6 +29,7 @@ export class ContractService {
   private logger: Logger
   private httpClient: HttpClient
   private api: ContractApi
+  private evmApi: EvmContractApi
   private wallet: WalletService
   private ensureInitialized: () => void
 
@@ -25,12 +38,14 @@ export class ContractService {
     httpClient: HttpClient,
     wallet: WalletService,
     ensureInitialized: () => void,
+    getEvmNetworkConfig: () => { rpcUrl?: string; chainId?: number } = () => ({}),
   ) {
     this.logger = logger
     this.httpClient = httpClient
     this.wallet = wallet
     this.ensureInitialized = ensureInitialized
     this.api = new ContractApi(this.httpClient)
+    this.evmApi = new EvmContractApi(getEvmNetworkConfig)
   }
 
   /**
@@ -232,5 +247,79 @@ export class ContractService {
       this.logger.error('Failed to query contract smart:', error)
       throw error
     }
+  }
+
+  /** Deploy an EVM contract using a cached ETH-derived account and local signing. */
+  public async deployEvmContract(params: DeployEvmContractParams): Promise<EvmDeploymentResult> {
+    this.ensureInitialized()
+    if (!params.sender || !params.abi || !params.bytecode) {
+      throw new Error('sender, abi, and bytecode are required')
+    }
+
+    try {
+      this.logger.info('Deploying EVM contract...', { sender: params.sender })
+      const provider = await this.evmApi.getProvider()
+      const signer = await this.wallet.createEvmWallet(params.sender, provider)
+      return await this.evmApi.deployContract(params, signer)
+    } catch (error) {
+      this.logger.error('Failed to deploy EVM contract:', error)
+      throw error
+    }
+  }
+
+  /** Execute a state-changing EVM contract method using local signing. */
+  public async executeEvmContract(params: ExecuteEvmContractParams): Promise<EvmExecutionResult> {
+    this.ensureInitialized()
+    if (!params.sender || !params.contractAddress || !params.abi || !params.method) {
+      throw new Error('sender, contractAddress, abi, and method are required')
+    }
+
+    try {
+      this.logger.info('Executing EVM contract...', {
+        sender: params.sender,
+        contractAddress: params.contractAddress,
+        method: params.method,
+      })
+      const provider = await this.evmApi.getProvider()
+      const signer = await this.wallet.createEvmWallet(params.sender, provider)
+      return await this.evmApi.executeContract(params, signer)
+    } catch (error) {
+      this.logger.error('Failed to execute EVM contract:', error)
+      throw error
+    }
+  }
+
+  /** Query an EVM contract method through eth_call. */
+  public async queryEvmContract(params: QueryEvmContractParams): Promise<unknown> {
+    this.ensureInitialized()
+    if (!params.contractAddress || !params.abi || !params.method) {
+      throw new Error('contractAddress, abi, and method are required')
+    }
+
+    try {
+      return await this.evmApi.queryContract(params)
+    } catch (error) {
+      this.logger.error('Failed to query EVM contract:', error)
+      throw error
+    }
+  }
+
+  /** Query address-level EVM contract information without requiring an ABI. */
+  public async getEvmContractInfo(contractAddress: string): Promise<EvmContractInfo> {
+    this.ensureInitialized()
+    if (!contractAddress) {
+      throw new Error('contractAddress is required')
+    }
+
+    try {
+      return await this.evmApi.getContractInfo(contractAddress)
+    } catch (error) {
+      this.logger.error('Failed to get EVM contract info:', error)
+      throw error
+    }
+  }
+
+  public destroy(): void {
+    this.evmApi.destroy()
   }
 }

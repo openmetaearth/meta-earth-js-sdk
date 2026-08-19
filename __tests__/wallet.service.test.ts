@@ -8,6 +8,7 @@ import {
 import { Logger } from '../src/utils/logger'
 import { HttpClient } from '../src/utils/http-client'
 import { WalletApi } from '../src/api/wallet'
+import { JsonRpcProvider, getAddress } from 'ethers'
 
 const testMnemonic = `must utility suit notable parade author bone near blush design dream duck`
 const testPriv = `2b522b5191b5ed1420abfdc860146aecbe086f4397179aac28acbc9ab7eff5c7`
@@ -273,6 +274,35 @@ describe('WalletService', () => {
 
       expect(account.address).toBe(testEthAddress)
       expect(Buffer.from(account.pubkey).toString('hex')).toBe(testCosmosPublicKey)
+    })
+  })
+
+  describe('createEvmWallet', () => {
+    it('creates a local ethers signer for a cached ETH-derived account', async () => {
+      const wallet = await service.createPrivateKeyWallet(testPriv, 'eth')
+      const provider = new JsonRpcProvider('http://localhost:8545')
+
+      try {
+        const signer = await service.createEvmWallet(wallet.address, provider)
+
+        expect(signer.address).toBe(getAddress(service.convertMeTo0xAddress(wallet.address)))
+        expect(signer.provider).toBe(provider)
+      } finally {
+        provider.destroy()
+      }
+    })
+
+    it('rejects Cosmos-derived accounts for EVM signing', async () => {
+      const wallet = await service.createPrivateKeyWallet(testPriv, 'cosmos')
+      const provider = new JsonRpcProvider('http://localhost:8545')
+
+      try {
+        await expect(service.createEvmWallet(wallet.address, provider)).rejects.toThrow(
+          'EVM signing requires an ETH-derived account',
+        )
+      } finally {
+        provider.destroy()
+      }
     })
   })
 
