@@ -10,7 +10,7 @@ A TypeScript SDK for Meta Earth wallet management, Cosmos and ETH-derived accoun
 | **Transaction** | Transfer, Cosmos/Ethermint signing, transaction query, gas simulation and fee calculation | 100% |
 | **ME ID / Sub-accounts** | Bind Cosmos and ETH-derived accounts, query by address, ME ID, or sub-account | 100% |
 | **Network Info** | Node version query, network status query | 100% |
-| **Staking** | Flexible staking, unstake, query delegation, query rewards, claim rewards | 100% |
+| **Staking** | Flexible staking plus region-aware fixed-term deposit, withdrawal, and position queries | 100% |
 | **Governance** | Query proposals, submit proposals, vote on proposals | 100% |
 | **WASM Contract** | Store code, deploy contract, execute contract, query contract, query by creator/CodeID | 100% |
 | **EVM Contract** | Deploy bytecode, execute methods, query methods, inspect contract bytecode and balance | Implemented* |
@@ -333,6 +333,8 @@ Network and unexpected protocol errors are thrown.
 
 ### Staking (`sdk.staking`)
 
+All staking APIs operate on the HUB layer. Omit `layer`; rollup staking is not supported.
+
 #### `stakeFlexible(params)`
 
 Flexible staking (HUB layer).
@@ -341,7 +343,6 @@ Flexible staking (HUB layer).
 const txHash = await sdk.staking.stakeFlexible({
   address: 'me1...',
   amount: { amount: '1000000', denom: 'umec' },
-  layer: 'hub',
 })
 ```
 
@@ -353,26 +354,25 @@ Unstake flexible staking (HUB layer).
 const txHash = await sdk.staking.unstakeFlexible({
   address: 'me1...',
   amount: { amount: '1000000', denom: 'umec' },
-  layer: 'hub',
 })
 ```
 
-#### `getFlexibleDelegation(delegatorAddr, layer?)`
+#### `getFlexibleDelegation(delegatorAddr)`
 
 Query flexible delegation.
 
 ```typescript
-const delegation = await sdk.staking.getFlexibleDelegation('me1...', 'hub')
+const delegation = await sdk.staking.getFlexibleDelegation('me1...')
 ```
 
 **API Endpoint**: `/metaearth/wstaking/delegation/{delegator_addr}`
 
-#### `getFlexibleDelegationRewards(delegatorAddr, layer?)`
+#### `getFlexibleDelegationRewards(delegatorAddr)`
 
 Query flexible delegation rewards.
 
 ```typescript
-const rewards = await sdk.staking.getFlexibleDelegationRewards('me1...', 'hub')
+const rewards = await sdk.staking.getFlexibleDelegationRewards('me1...')
 ```
 
 **API Endpoint**: `/metaearth/wstaking/delegation-rewards/{delegator_address}`
@@ -384,6 +384,97 @@ Claim flexible staking rewards (HUB layer).
 ```typescript
 const txHash = await sdk.staking.claimStakingReward('me1...')
 ```
+
+#### `getFixedDepositConfigs(address)`
+
+Resolve the wallet's ME ID region and query its fixed-term options. Cosmos accounts use the
+main-address ME ID lookup; ETH-derived sub-accounts use the sub-account lookup. The address must
+belong to a wallet already imported into this SDK instance because its cached `addressType`
+selects the lookup path.
+
+```typescript
+const { regionId, configs } = await sdk.staking.getFixedDepositConfigs('me1...')
+const activeConfigs = configs.filter((config) => config.status === 'FIXED_DEPOSIT_CFG_ACTIVE')
+```
+
+**API Endpoints**:
+
+- Cosmos account: `/metaearth/did/did?address={address}`
+- ETH-derived sub-account: `/metaearth/kyc/QuerySubAccountDidResponse?sub_account={address}`
+- Region options: `/metaearth/wstaking/fixed_deposit_cfg?regionIds={regionId}`
+
+Fixed-term queries use these public data contracts:
+
+```typescript
+type FixedDepositConfigStatus =
+  | 'FIXED_DEPOSIT_CFG_ACTIVE'
+  | 'FIXED_DEPOSIT_CFG_INACTIVE'
+  | 'UNRECOGNIZED'
+
+type FixedDepositState = 'ALL_STATE' | 'NOT_EXPIRED' | 'EXPIRED'
+
+interface FixedDepositConfig {
+  term: number
+  rate: string
+  status: FixedDepositConfigStatus
+}
+
+interface FixedDepositRecord {
+  id: number
+  account: string
+  principal?: { denom: string; amount: string }
+  interest?: { denom: string; amount: string }
+  startTime: string
+  endTime: string
+  term: number
+  rate: string
+}
+```
+
+`term` is measured in days. Rates and coin amounts remain strings so chain values are not rounded.
+REST `start_time` and `end_time` fields are returned as `startTime` and `endTime`. Missing or blank
+protocol-required fields cause the query to throw instead of returning incomplete records.
+
+#### `stakeFixed(params)`
+
+Create a fixed-term position after validating that the requested term is active for the wallet's
+ME ID region. The SDK automatically selects standard Cosmos `secp256k1` or Ethermint
+`ethsecp256k1` signing from the imported wallet's `addressType`. The principal amount must be a
+positive integer string, and `term` must be a positive integer matching an active regional config.
+
+```typescript
+const txHash = await sdk.staking.stakeFixed({
+  address: 'me1...',
+  principal: { amount: '1000000', denom: 'umec' },
+  term: 30,
+  memo: 'optional memo',
+})
+```
+
+#### `withdrawFixed(params)`
+
+Submit a fixed-term withdrawal transaction. The chain validates whether the position is
+withdrawable. `id` must be a positive integer.
+
+```typescript
+const txHash = await sdk.staking.withdrawFixed({
+  address: 'me1...',
+  id: 191,
+  memo: 'optional memo',
+})
+```
+
+#### `getFixedDeposits(address, state?)`
+
+Query fixed-term positions. `state` defaults to `ALL_STATE`; use `NOT_EXPIRED` or `EXPIRED` to
+filter by expiry state. This query accepts any account address and does not require an imported
+wallet.
+
+```typescript
+const positions = await sdk.staking.getFixedDeposits('me1...', 'ALL_STATE')
+```
+
+**API Endpoint**: `/metaearth/wstaking/fixed_deposit_by_acct/{address}/{state}`
 
 ---
 
@@ -698,7 +789,7 @@ Visit http://localhost:5173
 - **Wallet Management Panel** - Create, import, address conversion
 - **Query Panel** - Balance query, transaction query, node info
 - **Transaction Panel** - HUB and Rollup layer transfers
-- **Staking Panel** - Stake, unstake, query delegation, query rewards, claim rewards
+- **Staking Panel** - Flexible staking plus fixed-term options, deposits, withdrawals, and queries
 - **Governance Panel** - Query proposals (V1)
 - **WASM Contract Panel** - Store code, instantiate contract, execute contract
 - **EVM Contract Panel** - Deploy bytecode, execute methods, query methods, inspect addresses
