@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Card, Space, Button, Form, Input, Select, message, Tabs } from 'antd'
 import type { MetaEarthSDK } from 'meta-earth-js-sdk'
+import { FixedStakingPanel } from './FixedStakingPanel'
 
 interface StakingPanelProps {
   sdk: MetaEarthSDK
@@ -148,111 +149,142 @@ export const StakingPanel: React.FC<StakingPanelProps> = ({ sdk, isInitialized, 
       <Tabs
         items={[
           {
-            key: 'stake',
-            label: 'Stake',
+            key: 'flexible',
+            label: 'Flexible',
             children: (
-              <Form form={stakeForm} layout="vertical">
-                <Form.Item name="address" label="Wallet Address" rules={[{ required: true }]}>
-                  <Input placeholder="metaearth1..." />
-                </Form.Item>
-                <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
-                  <Input placeholder="1000" />
-                </Form.Item>
-                <Form.Item
-                  name="denom"
-                  label="Token Denom"
-                  rules={[{ required: true }]}
-                  initialValue={`umec`}
-                >
-                  <Input placeholder="umec" />
-                </Form.Item>
-                <Form.Item name="validatorAddress" label="Validator Address (optional)">
-                  <Input placeholder="metaearthvaloper1..." />
-                </Form.Item>
-                <Form.Item>
-                  <Button type="primary" onClick={handleStake} style={{ width: '100%' }}>
-                    Stake
-                  </Button>
-                </Form.Item>
-              </Form>
+              <Tabs
+                items={[
+                  {
+                    key: 'stake',
+                    label: 'Stake',
+                    children: (
+                      <Form form={stakeForm} layout="vertical">
+                        <Form.Item
+                          name="address"
+                          label="Wallet Address"
+                          rules={[{ required: true }]}
+                        >
+                          <Input placeholder="me1..." />
+                        </Form.Item>
+                        <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
+                          <Input placeholder="1000" />
+                        </Form.Item>
+                        <Form.Item
+                          name="denom"
+                          label="Token Denom"
+                          rules={[{ required: true }]}
+                          initialValue="umec"
+                        >
+                          <Input placeholder="umec" />
+                        </Form.Item>
+                        <Form.Item name="validatorAddress" label="Validator Address (optional)">
+                          <Input placeholder="mevaloper1..." />
+                        </Form.Item>
+                        <Form.Item>
+                          <Button type="primary" onClick={handleStake} block>
+                            Stake
+                          </Button>
+                        </Form.Item>
+                      </Form>
+                    ),
+                  },
+                  {
+                    key: 'unstake',
+                    label: 'Unstake',
+                    children: (
+                      <Form form={unstakeForm} layout="vertical">
+                        <Form.Item
+                          name="address"
+                          label="Wallet Address"
+                          rules={[{ required: true }]}
+                        >
+                          <Input placeholder="me1..." />
+                        </Form.Item>
+                        <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
+                          <Input placeholder="1000" />
+                        </Form.Item>
+                        <Form.Item name="denom" label="Token Denom" rules={[{ required: true }]}>
+                          <Input placeholder="umec" />
+                        </Form.Item>
+                        <Form.Item name="validatorAddress" label="Validator Address (optional)">
+                          <Input placeholder="mevaloper1..." />
+                        </Form.Item>
+                        <Form.Item>
+                          <Button type="primary" onClick={handleUnstake} block>
+                            Unstake
+                          </Button>
+                        </Form.Item>
+                      </Form>
+                    ),
+                  },
+                  {
+                    key: 'claim',
+                    label: 'Claim Rewards',
+                    children: (
+                      <Form form={claimForm} layout="vertical">
+                        <Form.Item
+                          name="address"
+                          label="Wallet Address"
+                          rules={[{ required: true }]}
+                        >
+                          <Input placeholder="me1..." />
+                        </Form.Item>
+                        <Form.Item>
+                          <Button type="primary" onClick={handleClaim} block>
+                            Claim Rewards
+                          </Button>
+                        </Form.Item>
+                      </Form>
+                    ),
+                  },
+                  {
+                    key: 'query',
+                    label: 'Lookup',
+                    children: (
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        <Card size="small" title="Flexible Staking Position">
+                          <Form form={queryForm} layout="vertical">
+                            <Form.Item
+                              name="address"
+                              label="Wallet Address"
+                              rules={[{ required: true }]}
+                            >
+                              <Input placeholder="me1..." />
+                            </Form.Item>
+                            <Form.Item>
+                              <Button type="primary" onClick={handleQueryFlexible} block>
+                                View Position
+                              </Button>
+                            </Form.Item>
+                          </Form>
+                        </Card>
+                        <Card size="small" title="Staking Rewards">
+                          <Form form={rewardForm} layout="vertical">
+                            <Form.Item
+                              name="address"
+                              label="Wallet Address"
+                              rules={[{ required: true }]}
+                            >
+                              <Input placeholder="me1..." />
+                            </Form.Item>
+                            <Form.Item>
+                              <Button type="primary" onClick={handleQueryRewards} block>
+                                View Rewards
+                              </Button>
+                            </Form.Item>
+                          </Form>
+                        </Card>
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
             ),
           },
           {
-            key: 'unstake',
-            label: 'Unstake',
-            children: (
-              <Form form={unstakeForm} layout="vertical">
-                <Form.Item name="address" label="Wallet Address" rules={[{ required: true }]}>
-                  <Input placeholder="metaearth1..." />
-                </Form.Item>
-                <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
-                  <Input placeholder="1000" />
-                </Form.Item>
-                <Form.Item name="denom" label="Token Denom" rules={[{ required: true }]}>
-                  <Input placeholder="uatom" />
-                </Form.Item>
-                <Form.Item name="validatorAddress" label="Validator Address (optional)">
-                  <Input placeholder="metaearthvaloper1..." />
-                </Form.Item>
-                <Form.Item>
-                  <Button type="primary" onClick={handleUnstake} style={{ width: '100%' }}>
-                    Unstake
-                  </Button>
-                </Form.Item>
-              </Form>
-            ),
-          },
-          {
-            key: 'claim',
-            label: 'Claim Rewards',
-            children: (
-              <Form form={claimForm} layout="vertical">
-                <Form.Item name="address" label="Wallet Address" rules={[{ required: true }]}>
-                  <Input placeholder="metaearth1..." />
-                </Form.Item>
-                <Form.Item>
-                  <Button type="primary" onClick={handleClaim} style={{ width: '100%' }}>
-                    Claim Rewards
-                  </Button>
-                </Form.Item>
-              </Form>
-            ),
-          },
-          {
-            key: 'query',
-            label: 'Lookup',
-            children: (
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Card size="small" title="Flexible Staking Position">
-                  <Form form={queryForm} layout="vertical">
-                    <Form.Item name="address" label="Wallet Address" rules={[{ required: true }]}>
-                      <Input placeholder="metaearth1..." />
-                    </Form.Item>
-                    <Form.Item>
-                      <Button
-                        type="primary"
-                        onClick={handleQueryFlexible}
-                        style={{ width: '100%' }}
-                      >
-                        View Position
-                      </Button>
-                    </Form.Item>
-                  </Form>
-                </Card>
-                <Card size="small" title="Staking Rewards">
-                  <Form form={rewardForm} layout="vertical">
-                    <Form.Item name="address" label="Wallet Address" rules={[{ required: true }]}>
-                      <Input placeholder="metaearth1..." />
-                    </Form.Item>
-                    <Form.Item>
-                      <Button type="primary" onClick={handleQueryRewards} style={{ width: '100%' }}>
-                        View Rewards
-                      </Button>
-                    </Form.Item>
-                  </Form>
-                </Card>
-              </Space>
-            ),
+            key: 'fixed',
+            label: 'Fixed-term',
+            children: <FixedStakingPanel sdk={sdk} isInitialized={isInitialized} addLog={addLog} />,
           },
         ]}
       />

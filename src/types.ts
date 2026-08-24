@@ -121,6 +121,66 @@ export interface FlexibleStakingParams {
 }
 
 /**
+ * Fixed-term staking parameters.
+ */
+export interface FixedDepositParams {
+  address: string
+  principal: Coin
+  term: number
+  memo?: string
+}
+
+/**
+ * Fixed-term staking withdrawal parameters.
+ */
+export interface WithdrawFixedDepositParams {
+  address: string
+  id: number
+  memo?: string
+}
+
+/**
+ * Fixed-term staking records can be filtered by their expiry state.
+ */
+export type FixedDepositState = 'ALL_STATE' | 'NOT_EXPIRED' | 'EXPIRED'
+
+export type FixedDepositConfigStatus =
+  | 'FIXED_DEPOSIT_CFG_ACTIVE'
+  | 'FIXED_DEPOSIT_CFG_INACTIVE'
+  | 'UNRECOGNIZED'
+
+/**
+ * An available fixed-term staking option for one ME ID region.
+ */
+export interface FixedDepositConfig {
+  term: number
+  rate: string
+  status: FixedDepositConfigStatus
+}
+
+/**
+ * Region and term options resolved from a wallet address.
+ */
+export interface FixedDepositConfigResult {
+  regionId: string
+  configs: FixedDepositConfig[]
+}
+
+/**
+ * A fixed-term staking position returned by the chain REST API.
+ */
+export interface FixedDepositRecord {
+  id: number
+  account: string
+  principal?: Coin
+  interest?: Coin
+  startTime: string
+  endTime: string
+  term: number
+  rate: string
+}
+
+/**
  * Proposal Parameters
  * Based on cosmos.gov.v1 MsgSubmitProposal structure
  */
