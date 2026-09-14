@@ -29,6 +29,10 @@ export const PREFIX: string = 'me'
  */
 export interface INetwork {
   name: Readonly<string>
+  /** Optional EVM JSON-RPC endpoint for this network. */
+  evmRpcUrl?: string
+  /** Expected EVM chain ID for endpoint validation. */
+  evmChainId?: number
   hub: {
     restfulUrl: string
     rpcUrl: string
@@ -42,7 +46,7 @@ export interface INetwork {
 }
 
 /**
- * // Target server configuration
+ * // Local target server configuration example
     const targets = {
       '/hub': 'http://118.175.0.230:1317',
       '/hub-rpc': 'http://118.175.0.230:26657',
@@ -57,6 +61,8 @@ export interface INetwork {
  */
 export const TEST_NET_CONFIG: INetwork = {
   name: 'TestNet',
+  evmRpcUrl: `http://118.175.0.249:8545`,
+  evmChainId: 400,
   hub: {
     restfulUrl: `http://118.175.0.249:1317`,
     rpcUrl: `http://118.175.0.249:26657`,

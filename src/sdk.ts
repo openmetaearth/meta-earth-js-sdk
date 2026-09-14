@@ -11,6 +11,7 @@ import { TransactionService } from './modules/transaction/service'
 import { StakingService } from './modules/staking/service'
 import { GovernanceService } from './modules/governance/service'
 import { ContractService } from './modules/contract/service'
+import { IdentityService } from './modules/identity/service'
 
 const DEFAULT_CONFIG: SDKConfig = {
   timeout: 60000,
@@ -45,6 +46,8 @@ export class MetaEarthSDK {
   public governance: GovernanceService
   /** Contract service module */
   public contract: ContractService
+  /** ME ID and sub-account service module */
+  public identity: IdentityService
 
   /**
    * Create Meta Earth JS SDK instance
@@ -100,6 +103,17 @@ export class MetaEarthSDK {
     )
 
     this.contract = new ContractService(
+      this.logger,
+      this.httpClient,
+      this.wallet,
+      ensureInitialized,
+      () => ({
+        rpcUrl: this.config.evmRpcUrl ?? this.networkConfig.evmRpcUrl,
+        chainId: this.config.evmChainId ?? this.networkConfig.evmChainId,
+      }),
+    )
+
+    this.identity = new IdentityService(
       this.logger,
       this.httpClient,
       this.wallet,
@@ -207,6 +221,7 @@ export class MetaEarthSDK {
    */
   public destroy(): void {
     this.logger.info('Destroying SDK...')
+    this.contract.destroy()
     this._isInitialized = false
     this.logger.info('SDK destroyed')
   }

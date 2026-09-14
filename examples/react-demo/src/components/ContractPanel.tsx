@@ -137,6 +137,7 @@ export const ContractPanel: React.FC<ContractPanelProps> = ({ sdk, isInitialized
     try {
       const values = await deployForm.validateFields()
       addLog('Instantiating contract...')
+      addLog(`  Sender: ${values.sender}`)
       addLog(`  Code ID: ${values.codeId}`)
       addLog(`  Label: ${values.label}`)
       if (values.admin) {
@@ -145,6 +146,7 @@ export const ContractPanel: React.FC<ContractPanelProps> = ({ sdk, isInitialized
 
       try {
         const result = await sdk.contract.deployContract({
+          sender: values.sender,
           codeId: Number(values.codeId),
           initMsg: values.initMsg ? JSON.parse(values.initMsg) : {},
           label: values.label,
@@ -391,6 +393,9 @@ export const ContractPanel: React.FC<ContractPanelProps> = ({ sdk, isInitialized
             label: '2. Instantiate',
             children: (
               <Form form={deployForm} layout="vertical">
+                <Form.Item name="sender" label="Sender Address" rules={[{ required: true }]}>
+                  <Input placeholder="me1..." />
+                </Form.Item>
                 <Form.Item name="codeId" label="Code ID" rules={[{ required: true }]}>
                   <Input placeholder="Code ID from the previous step" type="number" />
                 </Form.Item>

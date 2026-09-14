@@ -124,7 +124,7 @@ export const txClient = (
           amount: [{ denom: 'umec', amount: `${gas_fee}` }],
           gas: gas_limit,
         }
-        let signResData = await getSignData({ signingClient, address, msg, fee, memo })
+        let signResData = await getSignData({ signingClient, signer, address, msg, fee, memo })
         if (!(signResData as any).result) throw Error(`sendMsgVote: signResData error`)
         let rowRes = signResData.rowRes
         return await handleTxRaw(rowRes)
@@ -185,7 +185,7 @@ export const txClient = (
           amount: [{ denom: 'umec', amount: `${gas_fee}` }],
           gas: gas_limit,
         }
-        let signResData = await getSignData({ signingClient, address, msg, fee, memo })
+        let signResData = await getSignData({ signingClient, signer, address, msg, fee, memo })
         if (!(signResData as any).result) throw Error(`sendMsgSubmitProposal: signResData error`)
         let rowRes = signResData.rowRes
         return await handleTxRaw(rowRes)
@@ -284,7 +284,7 @@ export const txClient = (
         amount: [{ denom: 'umec', amount: `${gas_fee}` }],
         gas: gas_max_set,
       }
-      let signResData = await getSignData({ signingClient, address, msg, fee })
+      let signResData = await getSignData({ signingClient, signer, address, msg, fee })
       if (!(signResData as any).result) throw Error('simulateSubmitProposalGas: signResData error')
       let rowRes = signResData.rowRes
       const rowResJSON = await handleTxRaw(rowRes)
@@ -304,7 +304,7 @@ export const txClient = (
         amount: [{ denom: 'umec', amount: `${gas_fee}` }],
         gas: gas_max_set,
       }
-      let signResData = await getSignData({ signingClient, address, msg, fee })
+      let signResData = await getSignData({ signingClient, signer, address, msg, fee })
       if (!(signResData as any).result) throw Error('simulateVoteGas: signResData error')
       let rowRes = signResData.rowRes
       const rowResJSON = await handleTxRaw(rowRes)

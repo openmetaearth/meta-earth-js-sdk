@@ -1,8 +1,10 @@
 import { SigningStargateClient } from '@cosmjs/stargate'
+import type { OfflineSigner } from '@cosmjs/proto-signing'
 import { chainIdName } from '../config/define'
 import { TxRaw } from '../me-client-ts/cosmos.tx.v1beta1/types/cosmos/tx/v1beta1/tx'
 import { WalletApi, TransactionApi, httpClient } from '../api'
 import { Layer } from '../types'
+import { isEthSecp256k1DirectSigner, signDirectWithEthSecp256k1Pubkey } from './eth-secp256k1'
 
 /**
  * Handle TxRaw
@@ -47,6 +49,7 @@ interface getSignDataParams {
   memo?: string
   layer?: Layer
   chainId?: string
+  signer: OfflineSigner
 }
 
 export const getSignData: (
@@ -54,18 +57,35 @@ export const getSignData: (
 ) => Promise<{ result: boolean; rowRes?: TxRaw }> = (params) => {
   return new Promise<{ result: boolean; rowRes?: TxRaw }>(async (resolve) => {
     try {
-      debugger
-      let { signingClient, address, msg, fee, memo, layer = 'hub', chainId = '' } = params
+      let { signingClient, signer, address, msg, fee, memo, layer = 'hub', chainId = '' } = params
       let chainInfo = await new WalletApi(httpClient).getAccountInfo(address, layer)
 
       const account = chainInfo.account
       if (!account) throw Error('Account info not found')
 
-      // Cross-chain transaction chainId needs to be passed according to the specific chain
-      let rowRes = await signingClient.sign(address, [msg], fee, memo || '', {
+      const signerData = {
         accountNumber: account.account_number,
         sequence: account.sequence,
         chainId: chainId || chainIdName,
+      }
+
+      if (isEthSecp256k1DirectSigner(signer)) {
+        const rowRes = await signDirectWithEthSecp256k1Pubkey({
+          signer,
+          registry: signingClient.registry,
+          address,
+          messages: [msg],
+          fee,
+          memo: memo || '',
+          ...signerData,
+        })
+        resolve({ result: true, rowRes })
+        return
+      }
+
+      // Cross-chain transaction chainId needs to be passed according to the specific chain
+      let rowRes = await signingClient.sign(address, [msg], fee, memo || '', {
+        ...signerData,
       })
 
       resolve({ result: true, rowRes })

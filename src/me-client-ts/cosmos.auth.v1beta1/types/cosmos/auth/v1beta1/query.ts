@@ -1282,12 +1282,6 @@ export interface Query {
    */
   AddressBytesToString(request: AddressBytesToStringRequest): Promise<AddressBytesToStringResponse>
   /**
-   * AddressStringToBytes converts Address string to bytes
-   *
-   * Since: cosmos-sdk 0.46
-   */
-  AddressStringToBytes(request: AddressStringToBytesRequest): Promise<AddressStringToBytesResponse>
-  /**
    * AccountInfo queries account info which is common to all account types.
    *
    * Since: cosmos-sdk 0.47
@@ -1307,7 +1301,6 @@ export class QueryClientImpl implements Query {
     this.ModuleAccountByName = this.ModuleAccountByName.bind(this)
     this.Bech32Prefix = this.Bech32Prefix.bind(this)
     this.AddressBytesToString = this.AddressBytesToString.bind(this)
-    this.AddressStringToBytes = this.AddressStringToBytes.bind(this)
     this.AccountInfo = this.AccountInfo.bind(this)
   }
   Accounts(request: QueryAccountsRequest): Promise<QueryAccountsResponse> {
@@ -1364,14 +1357,6 @@ export class QueryClientImpl implements Query {
     return promise.then((data) => AddressBytesToStringResponse.decode(new _m0.Reader(data)))
   }
 
-  AddressStringToBytes(
-    request: AddressStringToBytesRequest,
-  ): Promise<AddressStringToBytesResponse> {
-    const data = AddressStringToBytesRequest.encode(request).finish()
-    const promise = this.rpc.request('cosmos.auth.v1beta1.Query', 'AddressStringToBytes', data)
-    return promise.then((data) => AddressStringToBytesResponse.decode(new _m0.Reader(data)))
-  }
-
   AccountInfo(request: QueryAccountInfoRequest): Promise<QueryAccountInfoResponse> {
     const data = QueryAccountInfoRequest.encode(request).finish()
     const promise = this.rpc.request('cosmos.auth.v1beta1.Query', 'AccountInfo', data)
@@ -1386,21 +1371,21 @@ interface Rpc {
 declare var self: any | undefined
 declare var window: any | undefined
 declare var global: any | undefined
-// var globalThis: any = (() => {
-//   if (typeof globalThis !== 'undefined') {
-//     return globalThis
-//   }
-//   if (typeof self !== 'undefined') {
-//     return self
-//   }
-//   if (typeof window !== 'undefined') {
-//     return window
-//   }
-//   if (typeof global !== 'undefined') {
-//     return global
-//   }
-//   throw 'Unable to locate global object'
-// })()
+var globalThis: any = (() => {
+  if (typeof globalThis !== 'undefined') {
+    return globalThis
+  }
+  if (typeof self !== 'undefined') {
+    return self
+  }
+  if (typeof window !== 'undefined') {
+    return window
+  }
+  if (typeof global !== 'undefined') {
+    return global
+  }
+  throw 'Unable to locate global object'
+})()
 
 function bytesFromBase64(b64: string): Uint8Array {
   if (globalThis.Buffer) {

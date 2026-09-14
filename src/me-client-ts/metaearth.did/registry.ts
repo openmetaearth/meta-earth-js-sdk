@@ -1,24 +1,26 @@
 import { GeneratedType } from '@cosmjs/proto-signing'
+import { MsgUpdateDidStatus } from './types/metaearth/did/tx'
 import { MsgUpdateVC } from './types/metaearth/did/tx'
+import { MsgUpdateServiceStatus } from './types/metaearth/did/tx'
 import { MsgCreateService } from './types/metaearth/did/tx'
 import { MsgCreateVC } from './types/metaearth/did/tx'
-import { MsgUpdateServiceStatus } from './types/metaearth/did/tx'
-import { MsgRemoveVC } from './types/metaearth/did/tx'
 import { MsgRemoveService } from './types/metaearth/did/tx'
+import { MsgRemoveVC } from './types/metaearth/did/tx'
 import { MsgCreateDid } from './types/metaearth/did/tx'
-import { MsgUpdateDidStatus } from './types/metaearth/did/tx'
 import { MsgRemoveDid } from './types/metaearth/did/tx'
 
-const msgTypes: Array<[string, GeneratedType]> = [
+// CosmJS 0.27's GeneratedType type only models protobufjs writers. Buf writers
+// expose the same encode(...).finish() contract used by Registry at runtime.
+const msgTypes = [
+  ['/metaearth.did.MsgUpdateDidStatus', MsgUpdateDidStatus],
   ['/metaearth.did.MsgUpdateVC', MsgUpdateVC],
+  ['/metaearth.did.MsgUpdateServiceStatus', MsgUpdateServiceStatus],
   ['/metaearth.did.MsgCreateService', MsgCreateService],
   ['/metaearth.did.MsgCreateVC', MsgCreateVC],
-  ['/metaearth.did.MsgUpdateServiceStatus', MsgUpdateServiceStatus],
-  ['/metaearth.did.MsgRemoveVC', MsgRemoveVC],
   ['/metaearth.did.MsgRemoveService', MsgRemoveService],
+  ['/metaearth.did.MsgRemoveVC', MsgRemoveVC],
   ['/metaearth.did.MsgCreateDid', MsgCreateDid],
-  ['/metaearth.did.MsgUpdateDidStatus', MsgUpdateDidStatus],
   ['/metaearth.did.MsgRemoveDid', MsgRemoveDid],
-]
+] as unknown as Array<[string, GeneratedType]>
 
 export { msgTypes }

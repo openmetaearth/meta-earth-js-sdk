@@ -93,8 +93,7 @@ export const txClient = (
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
-        } as any)
+        })
         let msg = this.msgCreateVestingAccount({
           value: MsgCreateVestingAccount.fromPartial(value),
         })
@@ -120,8 +119,7 @@ export const txClient = (
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
-        } as any)
+        })
         let msg = this.msgCreatePermanentLockedAccount({
           value: MsgCreatePermanentLockedAccount.fromPartial(value),
         })
@@ -147,8 +145,7 @@ export const txClient = (
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
-        } as any)
+        })
         let msg = this.msgCreatePeriodicVestingAccount({
           value: MsgCreatePeriodicVestingAccount.fromPartial(value),
         })

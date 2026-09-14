@@ -7,45 +7,33 @@ import { msgTypes } from './registry'
 import { IgniteClient } from '../client'
 import { MissingWalletError } from '../helpers'
 import { Api } from './rest'
-import { MsgUpdate } from './types/metaearth/kyc/tx'
-import { MsgRemove } from './types/metaearth/kyc/tx'
-import { MsgCreateSBT } from './types/metaearth/kyc/tx'
 import { MsgDeleteSBT } from './types/metaearth/kyc/tx'
-import { MsgUpdateSBT } from './types/metaearth/kyc/tx'
 import { MsgApprove } from './types/metaearth/kyc/tx'
+import { MsgRemove } from './types/metaearth/kyc/tx'
+import { MsgUpdateSBT } from './types/metaearth/kyc/tx'
+import { MsgUpdate } from './types/metaearth/kyc/tx'
+import { MsgCreateSBT } from './types/metaearth/kyc/tx'
+import { MsgCreateSubAccount } from './types/metaearth/kyc/tx'
+import { gas_max_set } from '../../config/define'
+import { getFinalGas, getFinalGasLimit } from '../../me-client-utils/config'
+import { getSignData, getSimulateGas, handleTxRaw } from '../../me-client-utils'
 
 import { KycEventSeq as typeKycEventSeq } from './types'
 import { Region as typeRegion } from './types'
 import { Protocol as typeProtocol } from './types'
 
-export { MsgUpdate, MsgRemove, MsgCreateSBT, MsgDeleteSBT, MsgUpdateSBT, MsgApprove }
-
-type sendMsgUpdateParams = {
-  value: MsgUpdate
-  fee?: StdFee
-  memo?: string
-}
-
-type sendMsgRemoveParams = {
-  value: MsgRemove
-  fee?: StdFee
-  memo?: string
-}
-
-type sendMsgCreateSBTParams = {
-  value: MsgCreateSBT
-  fee?: StdFee
-  memo?: string
+export {
+  MsgDeleteSBT,
+  MsgApprove,
+  MsgRemove,
+  MsgUpdateSBT,
+  MsgUpdate,
+  MsgCreateSBT,
+  MsgCreateSubAccount,
 }
 
 type sendMsgDeleteSBTParams = {
   value: MsgDeleteSBT
-  fee?: StdFee
-  memo?: string
-}
-
-type sendMsgUpdateSBTParams = {
-  value: MsgUpdateSBT
   fee?: StdFee
   memo?: string
 }
@@ -56,28 +44,62 @@ type sendMsgApproveParams = {
   memo?: string
 }
 
-type msgUpdateParams = {
-  value: MsgUpdate
-}
-
-type msgRemoveParams = {
+type sendMsgRemoveParams = {
   value: MsgRemove
+  fee?: StdFee
+  memo?: string
 }
 
-type msgCreateSBTParams = {
+type sendMsgUpdateSBTParams = {
+  value: MsgUpdateSBT
+  fee?: StdFee
+  memo?: string
+}
+
+type sendMsgUpdateParams = {
+  value: MsgUpdate
+  fee?: StdFee
+  memo?: string
+}
+
+type sendMsgCreateSBTParams = {
   value: MsgCreateSBT
+  fee?: StdFee
+  memo?: string
+}
+
+type sendMsgCreateSubAccountParams = {
+  value: MsgCreateSubAccount
+  gas?: string | number
+  memo?: string
 }
 
 type msgDeleteSBTParams = {
   value: MsgDeleteSBT
 }
 
+type msgApproveParams = {
+  value: MsgApprove
+}
+
+type msgRemoveParams = {
+  value: MsgRemove
+}
+
 type msgUpdateSBTParams = {
   value: MsgUpdateSBT
 }
 
-type msgApproveParams = {
-  value: MsgApprove
+type msgUpdateParams = {
+  value: MsgUpdate
+}
+
+type msgCreateSBTParams = {
+  value: MsgCreateSBT
+}
+
+type msgCreateSubAccountParams = {
+  value: MsgCreateSubAccount
 }
 
 export const registry = new Registry(msgTypes)
@@ -109,61 +131,6 @@ export const txClient = (
   { signer, prefix, addr }: TxClientOptions = { addr: 'http://localhost:26657', prefix: 'cosmos' },
 ) => {
   return {
-    async sendMsgUpdate({ value, fee, memo }: sendMsgUpdateParams): Promise<DeliverTxResponse> {
-      if (!signer) {
-        throw new Error('TxClient:sendMsgUpdate: Unable to sign Tx. Signer is not present.')
-      }
-      try {
-        const { address } = (await signer.getAccounts())[0]
-        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
-          registry,
-          prefix,
-        } as any)
-        let msg = this.msgUpdate({ value: MsgUpdate.fromPartial(value) })
-        return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
-      } catch (e: any) {
-        throw new Error('TxClient:sendMsgUpdate: Could not broadcast Tx: ' + e.message)
-      }
-    },
-
-    async sendMsgRemove({ value, fee, memo }: sendMsgRemoveParams): Promise<DeliverTxResponse> {
-      if (!signer) {
-        throw new Error('TxClient:sendMsgRemove: Unable to sign Tx. Signer is not present.')
-      }
-      try {
-        const { address } = (await signer.getAccounts())[0]
-        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
-          registry,
-          prefix,
-        } as any)
-        let msg = this.msgRemove({ value: MsgRemove.fromPartial(value) })
-        return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
-      } catch (e: any) {
-        throw new Error('TxClient:sendMsgRemove: Could not broadcast Tx: ' + e.message)
-      }
-    },
-
-    async sendMsgCreateSBT({
-      value,
-      fee,
-      memo,
-    }: sendMsgCreateSBTParams): Promise<DeliverTxResponse> {
-      if (!signer) {
-        throw new Error('TxClient:sendMsgCreateSBT: Unable to sign Tx. Signer is not present.')
-      }
-      try {
-        const { address } = (await signer.getAccounts())[0]
-        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
-          registry,
-          prefix,
-        } as any)
-        let msg = this.msgCreateSBT({ value: MsgCreateSBT.fromPartial(value) })
-        return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
-      } catch (e: any) {
-        throw new Error('TxClient:sendMsgCreateSBT: Could not broadcast Tx: ' + e.message)
-      }
-    },
-
     async sendMsgDeleteSBT({
       value,
       fee,
@@ -176,12 +143,43 @@ export const txClient = (
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
         } as any)
         let msg = this.msgDeleteSBT({ value: MsgDeleteSBT.fromPartial(value) })
         return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {
         throw new Error('TxClient:sendMsgDeleteSBT: Could not broadcast Tx: ' + e.message)
+      }
+    },
+
+    async sendMsgApprove({ value, fee, memo }: sendMsgApproveParams): Promise<DeliverTxResponse> {
+      if (!signer) {
+        throw new Error('TxClient:sendMsgApprove: Unable to sign Tx. Signer is not present.')
+      }
+      try {
+        const { address } = (await signer.getAccounts())[0]
+        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
+          registry,
+        } as any)
+        let msg = this.msgApprove({ value: MsgApprove.fromPartial(value) })
+        return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
+      } catch (e: any) {
+        throw new Error('TxClient:sendMsgApprove: Could not broadcast Tx: ' + e.message)
+      }
+    },
+
+    async sendMsgRemove({ value, fee, memo }: sendMsgRemoveParams): Promise<DeliverTxResponse> {
+      if (!signer) {
+        throw new Error('TxClient:sendMsgRemove: Unable to sign Tx. Signer is not present.')
+      }
+      try {
+        const { address } = (await signer.getAccounts())[0]
+        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
+          registry,
+        } as any)
+        let msg = this.msgRemove({ value: MsgRemove.fromPartial(value) })
+        return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
+      } catch (e: any) {
+        throw new Error('TxClient:sendMsgRemove: Could not broadcast Tx: ' + e.message)
       }
     },
 
@@ -197,7 +195,6 @@ export const txClient = (
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
         } as any)
         let msg = this.msgUpdateSBT({ value: MsgUpdateSBT.fromPartial(value) })
         return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
@@ -206,44 +203,80 @@ export const txClient = (
       }
     },
 
-    async sendMsgApprove({ value, fee, memo }: sendMsgApproveParams): Promise<DeliverTxResponse> {
+    async sendMsgUpdate({ value, fee, memo }: sendMsgUpdateParams): Promise<DeliverTxResponse> {
       if (!signer) {
-        throw new Error('TxClient:sendMsgApprove: Unable to sign Tx. Signer is not present.')
+        throw new Error('TxClient:sendMsgUpdate: Unable to sign Tx. Signer is not present.')
       }
       try {
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
         } as any)
-        let msg = this.msgApprove({ value: MsgApprove.fromPartial(value) })
+        let msg = this.msgUpdate({ value: MsgUpdate.fromPartial(value) })
         return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {
-        throw new Error('TxClient:sendMsgApprove: Could not broadcast Tx: ' + e.message)
+        throw new Error('TxClient:sendMsgUpdate: Could not broadcast Tx: ' + e.message)
       }
     },
 
-    msgUpdate({ value }: msgUpdateParams): EncodeObject {
+    async sendMsgCreateSBT({
+      value,
+      fee,
+      memo,
+    }: sendMsgCreateSBTParams): Promise<DeliverTxResponse> {
+      if (!signer) {
+        throw new Error('TxClient:sendMsgCreateSBT: Unable to sign Tx. Signer is not present.')
+      }
       try {
-        return { typeUrl: '/metaearth.kyc.MsgUpdate', value: MsgUpdate.fromPartial(value) }
+        const { address } = (await signer.getAccounts())[0]
+        const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
+          registry,
+        } as any)
+        let msg = this.msgCreateSBT({ value: MsgCreateSBT.fromPartial(value) })
+        return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {
-        throw new Error('TxClient:MsgUpdate: Could not create message: ' + e.message)
+        throw new Error('TxClient:sendMsgCreateSBT: Could not broadcast Tx: ' + e.message)
       }
     },
 
-    msgRemove({ value }: msgRemoveParams): EncodeObject {
-      try {
-        return { typeUrl: '/metaearth.kyc.MsgRemove', value: MsgRemove.fromPartial(value) }
-      } catch (e: any) {
-        throw new Error('TxClient:MsgRemove: Could not create message: ' + e.message)
+    async sendMsgCreateSubAccount({
+      value,
+      gas = 0,
+      memo,
+    }: sendMsgCreateSubAccountParams): Promise<{ tx_bytes: string }> {
+      if (!signer) {
+        throw new Error(
+          'TxClient:sendMsgCreateSubAccount: Unable to sign Tx. Signer is not present.',
+        )
       }
-    },
-
-    msgCreateSBT({ value }: msgCreateSBTParams): EncodeObject {
       try {
-        return { typeUrl: '/metaearth.kyc.MsgCreateSBT', value: MsgCreateSBT.fromPartial(value) }
+        const { address } = (await signer.getAccounts())[0]
+        const signingClient = await SigningStargateClient.offline(signer, { registry })
+        const msg = this.msgCreateSubAccount({
+          value: MsgCreateSubAccount.fromPartial(value),
+        })
+        const { gasUsed } = await this.simulateCreateSubAccountGas({ value })
+        if (!gasUsed) throw new Error('sendMsgCreateSubAccount: gasUsed error')
+
+        const fee = {
+          amount: [{ denom: 'umec', amount: getFinalGas(gasUsed, gas) }],
+          gas: getFinalGasLimit(gasUsed),
+        }
+        const signResult = await getSignData({
+          signingClient,
+          signer,
+          address,
+          msg,
+          fee,
+          memo,
+        })
+        if (!signResult.result || !signResult.rowRes) {
+          throw new Error('sendMsgCreateSubAccount: sign transaction error')
+        }
+
+        return await handleTxRaw(signResult.rowRes)
       } catch (e: any) {
-        throw new Error('TxClient:MsgCreateSBT: Could not create message: ' + e.message)
+        throw new Error('TxClient:sendMsgCreateSubAccount: Could not create Tx: ' + e.message)
       }
     },
 
@@ -255,6 +288,22 @@ export const txClient = (
       }
     },
 
+    msgApprove({ value }: msgApproveParams): EncodeObject {
+      try {
+        return { typeUrl: '/metaearth.kyc.MsgApprove', value: MsgApprove.fromPartial(value) }
+      } catch (e: any) {
+        throw new Error('TxClient:MsgApprove: Could not create message: ' + e.message)
+      }
+    },
+
+    msgRemove({ value }: msgRemoveParams): EncodeObject {
+      try {
+        return { typeUrl: '/metaearth.kyc.MsgRemove', value: MsgRemove.fromPartial(value) }
+      } catch (e: any) {
+        throw new Error('TxClient:MsgRemove: Could not create message: ' + e.message)
+      }
+    },
+
     msgUpdateSBT({ value }: msgUpdateSBTParams): EncodeObject {
       try {
         return { typeUrl: '/metaearth.kyc.MsgUpdateSBT', value: MsgUpdateSBT.fromPartial(value) }
@@ -263,12 +312,61 @@ export const txClient = (
       }
     },
 
-    msgApprove({ value }: msgApproveParams): EncodeObject {
+    msgUpdate({ value }: msgUpdateParams): EncodeObject {
       try {
-        return { typeUrl: '/metaearth.kyc.MsgApprove', value: MsgApprove.fromPartial(value) }
+        return { typeUrl: '/metaearth.kyc.MsgUpdate', value: MsgUpdate.fromPartial(value) }
       } catch (e: any) {
-        throw new Error('TxClient:MsgApprove: Could not create message: ' + e.message)
+        throw new Error('TxClient:MsgUpdate: Could not create message: ' + e.message)
       }
+    },
+
+    msgCreateSBT({ value }: msgCreateSBTParams): EncodeObject {
+      try {
+        return { typeUrl: '/metaearth.kyc.MsgCreateSBT', value: MsgCreateSBT.fromPartial(value) }
+      } catch (e: any) {
+        throw new Error('TxClient:MsgCreateSBT: Could not create message: ' + e.message)
+      }
+    },
+
+    msgCreateSubAccount({ value }: msgCreateSubAccountParams): EncodeObject {
+      try {
+        return {
+          typeUrl: '/metaearth.kyc.MsgCreateSubAccount',
+          value: MsgCreateSubAccount.fromPartial(value),
+        }
+      } catch (e: any) {
+        throw new Error('TxClient:MsgCreateSubAccount: Could not create message: ' + e.message)
+      }
+    },
+
+    async simulateCreateSubAccountGas({
+      value,
+      gas = 50000,
+    }: {
+      value: MsgCreateSubAccount
+      gas?: string | number
+    }) {
+      if (!signer) {
+        throw new Error(
+          'TxClient:simulateCreateSubAccountGas: Unable to sign Tx. Signer is not present.',
+        )
+      }
+
+      const { address } = (await signer.getAccounts())[0]
+      const signingClient = await SigningStargateClient.offline(signer, { registry })
+      const msg = this.msgCreateSubAccount({
+        value: MsgCreateSubAccount.fromPartial(value),
+      })
+      const fee = {
+        amount: [{ denom: 'umec', amount: String(gas) }],
+        gas: gas_max_set,
+      }
+      const signResult = await getSignData({ signingClient, signer, address, msg, fee })
+      if (!signResult.result || !signResult.rowRes) {
+        throw new Error('simulateCreateSubAccountGas: sign transaction error')
+      }
+
+      return await getSimulateGas(await handleTxRaw(signResult.rowRes))
     },
   }
 }

@@ -1,0 +1,165 @@
+.evm-contract-panel {
+  width: 100%;
+}
+
+.evm-example-reference {
+  margin-bottom: 16px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.evm-example-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.evm-example-title {
+  color: #262626;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.evm-example-meta,
+.evm-example-status {
+  color: #595959;
+  font-size: 12px;
+}
+
+.evm-example-meta {
+  margin-top: 2px;
+}
+
+.evm-example-status {
+  flex: none;
+  padding-top: 2px;
+}
+
+.evm-example-copy {
+  margin: 10px 0 0;
+  color: #434343;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.evm-method-reference {
+  margin: 12px 0 0;
+}
+
+.evm-method-reference > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid #f0f0f0;
+}
+
+.evm-method-reference dt {
+  color: #595959;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.evm-method-reference dd {
+  min-width: 0;
+  margin: 0;
+  color: #262626;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.evm-method-reference code,
+.evm-method-restrictions code {
+  color: #262626;
+  font-size: 12px;
+}
+
+.evm-method-restrictions {
+  margin: 2px 0 0 100px;
+  color: #595959;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.evm-contract-tabs .ant-tabs-content-holder {
+  min-width: 0;
+}
+
+.evm-advanced {
+  margin: 4px 0 16px;
+  border-top: 1px solid #d9d9d9;
+  border-bottom: 1px solid #d9d9d9;
+}
+
+.evm-advanced summary {
+  padding: 12px 4px;
+  color: #434343;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.evm-advanced summary:hover {
+  color: #1677ff;
+}
+
+.evm-advanced summary:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
+}
+
+.evm-advanced-content {
+  padding: 4px 4px 0;
+}
+
+.evm-code-field textarea,
+.evm-contract-result pre {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.evm-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.evm-contract-result {
+  margin-top: 20px;
+}
+
+.evm-contract-result pre {
+  max-height: 320px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .evm-example-header {
+    display: block;
+  }
+
+  .evm-example-status {
+    margin-top: 6px;
+  }
+
+  .evm-method-reference > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .evm-method-restrictions {
+    margin-left: 0;
+  }
+
+  .evm-form-actions .ant-btn {
+    width: 100%;
+  }
+
+  .evm-contract-result pre {
+    max-height: 240px;
+  }
+}

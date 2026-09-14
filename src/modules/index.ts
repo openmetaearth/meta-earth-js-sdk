@@ -18,5 +18,8 @@ export { GovernanceService } from './governance/service'
 // Contract module
 export { ContractService } from './contract/service'
 
+// Identity module
+export { IdentityService } from './identity/service'
+
 // Wallet creation utility
 export { createMeWallet } from './wallet/service'

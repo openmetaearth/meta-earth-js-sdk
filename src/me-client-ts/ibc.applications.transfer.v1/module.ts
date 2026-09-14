@@ -86,6 +86,7 @@ export const txClient = (
 
         const signResData = await getSignData({
           signingClient,
+          signer,
           address,
           msg,
           fee,
@@ -127,7 +128,7 @@ export const txClient = (
         gas: gas_max_set,
       }
       const isRollApp = value.token.denom !== 'umec'
-      let signResData = await getSignData({ signingClient, address, msg, fee, chainId })
+      let signResData = await getSignData({ signingClient, signer, address, msg, fee, chainId })
       if (!(signResData as any).result) throw Error()
       let rowRes = signResData.rowRes
       const rowResJSON = await handleTxRaw(rowRes)

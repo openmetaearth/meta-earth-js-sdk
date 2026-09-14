@@ -7,20 +7,20 @@ import { msgTypes } from './registry'
 import { IgniteClient } from '../client'
 import { MissingWalletError } from '../helpers'
 import { Api } from './rest'
-import { MsgUpdateGlobalDao } from './types/metaearth/dao/tx'
+import { MsgUpdateDao } from './types/metaearth/dao/tx'
 
 import { DaoAddresses as typeDaoAddresses } from './types'
 
-export { MsgUpdateGlobalDao }
+export { MsgUpdateDao }
 
-type sendMsgUpdateGlobalDaoParams = {
-  value: MsgUpdateGlobalDao
+type sendMsgUpdateDaoParams = {
+  value: MsgUpdateDao
   fee?: StdFee
   memo?: string
 }
 
-type msgUpdateGlobalDaoParams = {
-  value: MsgUpdateGlobalDao
+type msgUpdateDaoParams = {
+  value: MsgUpdateDao
 }
 
 export const registry = new Registry(msgTypes)
@@ -52,37 +52,31 @@ export const txClient = (
   { signer, prefix, addr }: TxClientOptions = { addr: 'http://localhost:26657', prefix: 'cosmos' },
 ) => {
   return {
-    async sendMsgUpdateGlobalDao({
+    async sendMsgUpdateDao({
       value,
       fee,
       memo,
-    }: sendMsgUpdateGlobalDaoParams): Promise<DeliverTxResponse> {
+    }: sendMsgUpdateDaoParams): Promise<DeliverTxResponse> {
       if (!signer) {
-        throw new Error(
-          'TxClient:sendMsgUpdateGlobalDao: Unable to sign Tx. Signer is not present.',
-        )
+        throw new Error('TxClient:sendMsgUpdateDao: Unable to sign Tx. Signer is not present.')
       }
       try {
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
         } as any)
-        let msg = this.msgUpdateGlobalDao({ value: MsgUpdateGlobalDao.fromPartial(value) })
+        let msg = this.msgUpdateDao({ value: MsgUpdateDao.fromPartial(value) })
         return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {
-        throw new Error('TxClient:sendMsgUpdateGlobalDao: Could not broadcast Tx: ' + e.message)
+        throw new Error('TxClient:sendMsgUpdateDao: Could not broadcast Tx: ' + e.message)
       }
     },
 
-    msgUpdateGlobalDao({ value }: msgUpdateGlobalDaoParams): EncodeObject {
+    msgUpdateDao({ value }: msgUpdateDaoParams): EncodeObject {
       try {
-        return {
-          typeUrl: '/metaearth.dao.MsgUpdateGlobalDao',
-          value: MsgUpdateGlobalDao.fromPartial(value),
-        }
+        return { typeUrl: '/metaearth.dao.MsgUpdateDao', value: MsgUpdateDao.fromPartial(value) }
       } catch (e: any) {
-        throw new Error('TxClient:MsgUpdateGlobalDao: Could not create message: ' + e.message)
+        throw new Error('TxClient:MsgUpdateDao: Could not create message: ' + e.message)
       }
     },
   }

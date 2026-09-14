@@ -1,6 +1,37 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Button, Input, Space, message, List, Typography, Modal, Form, Tabs } from 'antd'
-import type { MetaEarthSDK } from 'meta-earth-js-sdk'
+import {
+  Card,
+  Button,
+  Input,
+  InputNumber,
+  Space,
+  message,
+  List,
+  Typography,
+  Modal,
+  Form,
+  Radio,
+  Tabs,
+} from 'antd'
+import type { MetaEarthSDK, WalletAddressType } from 'meta-earth-js-sdk'
+
+const ADDRESS_TYPE_OPTIONS: Array<{ label: string; value: WalletAddressType }> = [
+  { label: 'Cosmos', value: 'cosmos' },
+  { label: 'ETH', value: 'eth' },
+]
+
+interface ImportWalletFormValues {
+  mnemonic?: string
+  privateKey?: string
+  addressType: WalletAddressType
+}
+
+interface BatchWalletFormValues {
+  mnemonic: string
+  count: number
+  startIndex: number
+  addressType: WalletAddressType
+}
 
 interface WalletManagerProps {
   sdk: MetaEarthSDK
@@ -10,10 +41,19 @@ interface WalletManagerProps {
 
 export const WalletManager: React.FC<WalletManagerProps> = ({ sdk, isInitialized, addLog }) => {
   const [walletAddresses, setWalletAddresses] = useState<string[]>([])
+  const [addressType, setAddressType] = useState<WalletAddressType>('cosmos')
+  const [createdWallet, setCreatedWallet] = useState<{
+    address: string
+    publicKey: string
+    mnemonic: string
+    addressType: WalletAddressType
+  } | null>(null)
   const [modalVisible, setModalVisible] = useState(false)
+  const [batchModalVisible, setBatchModalVisible] = useState(false)
   const [convertModalVisible, setConvertModalVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<'mnemonic' | 'privateKey'>('privateKey')
-  const [form] = Form.useForm()
+  const [form] = Form.useForm<ImportWalletFormValues>()
+  const [batchForm] = Form.useForm<BatchWalletFormValues>()
   const [convertForm] = Form.useForm()
 
   const handleCreateWallet = async () => {
@@ -23,13 +63,19 @@ export const WalletManager: React.FC<WalletManagerProps> = ({ sdk, isInitialized
     }
 
     try {
-      addLog('Creating mnemonic wallet...')
-      const result = await sdk.wallet.createMnemonicWallet()
-      addLog(`Wallet created successfully. Address: ${result.address}`)
-      addLog(`Mnemonic: ${result.mnemonic}`)
+      addLog(`Creating ${addressType.toUpperCase()} mnemonic wallet...`)
+      const result = await sdk.wallet.createMnemonicWallet(undefined, 0, addressType)
+      addLog(`${addressType.toUpperCase()} wallet created successfully. Address: ${result.address}`)
       message.success('Wallet created successfully!')
 
       setWalletAddresses((prev) => [...prev, result.address])
+      // Recovery material is shown directly to the user and never written to the demo log.
+      setCreatedWallet({
+        address: result.address,
+        publicKey: result.publicKey,
+        mnemonic: result.mnemonic,
+        addressType,
+      })
     } catch (error: any) {
       addLog(`Wallet creation failed: ${error.message}`)
       message.error(`Creation failed: ${error.message}`)
@@ -41,28 +87,32 @@ export const WalletManager: React.FC<WalletManagerProps> = ({ sdk, isInitialized
       message.error('Please initialize the SDK first')
       return
     }
+    form.setFieldsValue({ addressType })
     setModalVisible(true)
   }
 
   const handleModalOk = async () => {
     try {
       const values = await form.validateFields()
-      const walletData: any = {}
+      const credential =
+        activeTab === 'mnemonic' ? values.mnemonic?.trim() : values.privateKey?.trim()
 
-      if (activeTab === 'mnemonic' && values.mnemonic) {
-        walletData.mnemonic = values.mnemonic
-      } else if (activeTab === 'privateKey' && values.privateKey) {
-        walletData.privateKey = values.privateKey
-      }
-
-      if (Object.keys(walletData).length === 0) {
+      if (!credential) {
         message.error('Please enter a mnemonic or private key')
         return
       }
 
-      addLog('Importing wallet...')
+      const walletData =
+        activeTab === 'mnemonic'
+          ? { mnemonic: credential, addressType: values.addressType }
+          : { privateKey: credential, addressType: values.addressType }
+
+      addLog(`Importing ${values.addressType.toUpperCase()} wallet...`)
       const result = await sdk.wallet.importWallet(walletData)
-      addLog(`Wallet imported successfully. Address: ${result.address}`)
+      addLog(
+        `${values.addressType.toUpperCase()} wallet imported successfully. Address: ${result.address}`,
+      )
+      addLog(`Public key: ${result.publicKey}`)
       message.success('Wallet imported successfully!')
 
       setWalletAddresses((prev) => [...prev, result.address])
@@ -132,24 +182,44 @@ export const WalletManager: React.FC<WalletManagerProps> = ({ sdk, isInitialized
       return
     }
 
-    const count = 5 // Create five wallets in a batch
+    batchForm.setFieldsValue({ addressType, count: 5, startIndex: 0 })
+    setBatchModalVisible(true)
+  }
+
+  const handleBatchModalOk = async () => {
     try {
-      addLog(`Starting batch creation of ${count} wallets...`)
-      const wallets = []
+      const values = await batchForm.validateFields()
+      const mnemonic = values.mnemonic.trim()
 
-      for (let i = 0; i < count; i++) {
-        const result = await sdk.wallet.createMnemonicWallet()
-        wallets.push(result)
-        addLog(`  [${i + 1}/${count}] ${result.address}`)
-        setWalletAddresses((prev) => [...prev, result.address])
-      }
+      addLog(
+        `Deriving ${values.count} ${values.addressType.toUpperCase()} wallets from index ${values.startIndex}...`,
+      )
+      const wallets = await sdk.wallet.batchCreateWallets(
+        mnemonic,
+        values.count,
+        values.startIndex,
+        values.addressType,
+      )
 
-      addLog(`Batch creation completed. Created ${count} wallets`)
-      message.success(`Successfully created ${count} wallets!`)
+      wallets.forEach((wallet, index) =>
+        addLog(`  [${index + 1}/${values.count}] ${wallet.address} | ${wallet.publicKey}`),
+      )
+      setWalletAddresses((prev) => [...prev, ...wallets.map((wallet) => wallet.address)])
+
+      addLog(`Batch derivation completed. Created ${wallets.length} wallets`)
+      message.success(`Successfully created ${wallets.length} wallets!`)
+      setBatchModalVisible(false)
+      batchForm.resetFields()
     } catch (error: any) {
+      if (error.errorFields) return
       addLog(`Batch creation failed: ${error.message}`)
       message.error(`Batch creation failed: ${error.message}`)
     }
+  }
+
+  const handleBatchModalCancel = () => {
+    setBatchModalVisible(false)
+    batchForm.resetFields()
   }
 
   const handleExportWallet = async () => {
@@ -180,11 +250,22 @@ export const WalletManager: React.FC<WalletManagerProps> = ({ sdk, isInitialized
   return (
     <Card title="Wallet Management" className="demo-section">
       <Space orientation="vertical" style={{ width: '100%' }}>
+        <Space wrap align="center">
+          <Typography.Text strong>Address Type</Typography.Text>
+          <Radio.Group
+            options={ADDRESS_TYPE_OPTIONS}
+            value={addressType}
+            optionType="button"
+            buttonStyle="solid"
+            onChange={(event) => setAddressType(event.target.value as WalletAddressType)}
+          />
+        </Space>
+
         <Space wrap>
           <Button type="primary" onClick={handleCreateWallet}>
             Create Wallet
           </Button>
-          <Button onClick={handleBatchCreateWallets}>Create 5 Wallets</Button>
+          <Button onClick={handleBatchCreateWallets}>Batch Derive</Button>
           <Button onClick={handleImportWallet}>Import Wallet</Button>
           <Button onClick={handleGetAddresses}>Refresh Addresses</Button>
           <Button onClick={handleExportWallet}>Export Addresses</Button>
@@ -214,13 +295,44 @@ export const WalletManager: React.FC<WalletManagerProps> = ({ sdk, isInitialized
       </Space>
 
       <Modal
+        title="Wallet Created"
+        open={createdWallet !== null}
+        onOk={() => setCreatedWallet(null)}
+        onCancel={() => setCreatedWallet(null)}
+        cancelButtonProps={{ style: { display: 'none' } }}
+        okText="I saved it"
+      >
+        {createdWallet ? (
+          <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+            <Typography.Text>
+              {createdWallet.addressType.toUpperCase()} address: {createdWallet.address}
+            </Typography.Text>
+            <Typography.Text copyable={{ text: createdWallet.publicKey }}>
+              Public key: {createdWallet.publicKey}
+            </Typography.Text>
+            <Typography.Text strong>Save this mnemonic securely. Do not share it.</Typography.Text>
+            <Typography.Paragraph copyable={{ text: createdWallet.mnemonic }} code>
+              {createdWallet.mnemonic}
+            </Typography.Paragraph>
+          </Space>
+        ) : null}
+      </Modal>
+
+      <Modal
         title="Import Wallet"
         open={modalVisible}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         width={600}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" initialValues={{ addressType: 'cosmos' }}>
+          <Form.Item
+            name="addressType"
+            label="Address Type"
+            rules={[{ required: true, message: 'Please select an address type' }]}
+          >
+            <Radio.Group options={ADDRESS_TYPE_OPTIONS} optionType="button" buttonStyle="solid" />
+          </Form.Item>
           <Tabs
             activeKey={activeTab}
             onChange={(key) => setActiveTab(key as 'mnemonic' | 'privateKey')}
@@ -267,6 +379,63 @@ export const WalletManager: React.FC<WalletManagerProps> = ({ sdk, isInitialized
               },
             ]}
           />
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Batch Derive Wallets"
+        open={batchModalVisible}
+        onOk={handleBatchModalOk}
+        onCancel={handleBatchModalCancel}
+        width={600}
+      >
+        <Form
+          form={batchForm}
+          layout="vertical"
+          initialValues={{ addressType: 'cosmos', count: 5, startIndex: 0 }}
+        >
+          <Form.Item
+            name="addressType"
+            label="Address Type"
+            rules={[{ required: true, message: 'Please select an address type' }]}
+          >
+            <Radio.Group options={ADDRESS_TYPE_OPTIONS} optionType="button" buttonStyle="solid" />
+          </Form.Item>
+          <Form.Item
+            name="mnemonic"
+            label="Mnemonic"
+            rules={[{ required: true, message: 'Please enter a mnemonic' }]}
+          >
+            <Input.TextArea
+              rows={4}
+              placeholder="Enter a 12- or 24-word mnemonic separated by spaces"
+            />
+          </Form.Item>
+          <Space size="middle" wrap>
+            <Form.Item
+              name="count"
+              label="Address Count"
+              rules={[
+                { required: true, type: 'integer', min: 1, message: 'Enter an integer above 0' },
+              ]}
+            >
+              <InputNumber min={1} precision={0} />
+            </Form.Item>
+            <Form.Item
+              name="startIndex"
+              label="Start Index"
+              rules={[
+                {
+                  required: true,
+                  type: 'integer',
+                  min: 0,
+                  message: 'Enter an integer of 0 or more',
+                },
+              ]}
+            >
+              <InputNumber min={0} precision={0} />
+            </Form.Item>
+          </Space>
         </Form>
       </Modal>
 

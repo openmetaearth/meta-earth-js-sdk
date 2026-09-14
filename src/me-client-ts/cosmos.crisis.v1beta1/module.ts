@@ -75,8 +75,7 @@ export const txClient = (
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
-        } as any)
+        })
         let msg = this.msgVerifyInvariant({ value: MsgVerifyInvariant.fromPartial(value) })
         return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {
@@ -96,8 +95,7 @@ export const txClient = (
         const { address } = (await signer.getAccounts())[0]
         const signingClient = await SigningStargateClient.connectWithSigner(addr, signer, {
           registry,
-          prefix,
-        } as any)
+        })
         let msg = this.msgUpdateParams({ value: MsgUpdateParams.fromPartial(value) })
         return await signingClient.signAndBroadcast(address, [msg], fee ? fee : defaultFee, memo)
       } catch (e: any) {

@@ -1,17 +1,21 @@
 # Meta Earth JS SDK
 
-A feature-complete TypeScript SDK for Meta Earth blockchain wallet management, transactions, staking, and governance. Supports both browser and Node.js environments.
+A TypeScript SDK for Meta Earth wallet management, Cosmos and ETH-derived accounts, transactions, ME ID, sub-accounts, staking, governance, and contracts. Supports both browser and Node.js environments.
 
 ## Feature Status
 
 | Module | Implemented Features | Status |
 | ------------ | ------------------------------------------------------------ | --------- |
-| **Wallet Management** | Mnemonic generation, wallet creation, batch creation, import/export, address conversion, balance query | 100% |
-| **Transaction** | Transfer, transaction query, Gas simulation | 100% |
+| **Wallet Management** | Cosmos and ETH-derived addresses, mnemonic/private-key import, batch derivation, public-key retention, balance query | 100% |
+| **Transaction** | Transfer, Cosmos/Ethermint signing, transaction query, gas simulation and fee calculation | 100% |
+| **ME ID / Sub-accounts** | Bind Cosmos and ETH-derived accounts, query by address, ME ID, or sub-account | 100% |
 | **Network Info** | Node version query, network status query | 100% |
-| **Staking** | Flexible staking, unstake, query delegation, query rewards, claim rewards | 100% |
+| **Staking** | Flexible staking plus region-aware fixed-term deposit, withdrawal, and position queries | 100% |
 | **Governance** | Query proposals, submit proposals, vote on proposals | 100% |
 | **WASM Contract** | Store code, deploy contract, execute contract, query contract, query by creator/CodeID | 100% |
+| **EVM Contract** | Deploy bytecode, execute methods, query methods, inspect contract bytecode and balance | Implemented* |
+
+\* Testnet includes default EVM RPC settings. Mainnet EVM operations require explicit `evmRpcUrl` and `evmChainId` configuration.
 
 ---
 
@@ -41,17 +45,17 @@ await sdk.initialize()
 // Create wallet
 const wallet = await sdk.wallet.createMnemonicWallet()
 console.log('Address:', wallet.address)
-console.log('Mnemonic:', wallet.mnemonic)
+// Never log or transmit wallet.mnemonic or wallet.privateKey. Store recovery material securely.
 
 // Query balance
-const balance = await sdk.transaction.getBalance(wallet.address, 'umec')
+const balance = await sdk.wallet.getBalance(wallet.address, 'hub')
 console.log('Balance:', balance)
 
 // Transfer
 const txHash = await sdk.transaction.transfer({
   fromAddress: wallet.address,
-  toAddress: 'metaearth1...',
-  amount: { amount: '1000000', denom: 'umec' },
+  toAddress: 'me1...',
+  amount: [{ amount: '1000000', denom: 'umec' }],
   layer: 'hub',
 })
 console.log('Transaction Hash:', txHash)
@@ -74,7 +78,7 @@ async function main() {
   console.log('ME Address:', meAddr)
 
   // Query node version
-  const nodeInfo = await sdk.transaction.getNodeInfo('hub')
+  const nodeInfo = await sdk.wallet.getNodeVersion('hub')
   console.log('Node Version:', nodeInfo)
 }
 
@@ -94,10 +98,12 @@ Create SDK instance.
 ```typescript
 const sdk = new MetaEarthSDK({
   config: {
-    timeout?: number     // Request timeout (default: 10000ms)
+    timeout?: number     // Request timeout (default: 60000ms)
     debug?: boolean      // Enable debug logs (default: false)
     network?: Network    // Network type ('testnet' / 'mainnet')
     layer?: Layer        // Default layer ('hub' / 'rollup')
+    evmRpcUrl?: string   // Optional EVM JSON-RPC override
+    evmChainId?: number  // Expected EVM chain ID for RPC validation
   }
 })
 ```
@@ -114,25 +120,29 @@ await sdk.initialize()
 
 ### Wallet Management (`sdk.wallet`)
 
-#### `createMnemonicWallet(mnemonic?)`
+#### `createMnemonicWallet(mnemonic?, index?, addressType?)`
 
-Create or import mnemonic wallet.
+Create or import a mnemonic wallet. `addressType` supports `'cosmos'` (default) and `'eth'`.
 
 ```typescript
 // Generate new wallet
 const wallet = await sdk.wallet.createMnemonicWallet()
-// Returns: { address, mnemonic, privateKey }
+// Returns: { address, addressType, publicKey, mnemonic, privateKey, ... }
 
 // Import existing mnemonic
 const wallet2 = await sdk.wallet.createMnemonicWallet('word1 word2 ...')
+
+// Generate an ETH-derived secp256k1 address encoded with the me Bech32 prefix
+const ethWallet = await sdk.wallet.createMnemonicWallet(undefined, 0, 'eth')
 ```
 
-#### `createPrivateKeyWallet(privateKey)`
+#### `createPrivateKeyWallet(privateKey, addressType?)`
 
-Create wallet from private key.
+Create wallet from a private key. The default remains the existing Cosmos address rule.
 
 ```typescript
 const wallet = await sdk.wallet.createPrivateKeyWallet('0x...')
+const ethWallet = await sdk.wallet.createPrivateKeyWallet('0x...', 'eth')
 ```
 
 #### `importWallet(data)`
@@ -142,8 +152,22 @@ Import wallet (supports mnemonic or private key).
 ```typescript
 const wallet = await sdk.wallet.importWallet({
   mnemonic: '...', // or privateKey: '...'
+  addressType: 'eth',
 })
 ```
+
+#### `batchCreateWallets(mnemonic, count, startIndex?, addressType?)`
+
+Derive multiple wallets from one mnemonic. `count` controls the number of returned addresses.
+
+```typescript
+const ethWallets = await sdk.wallet.batchCreateWallets('word1 word2 ...', 10, 0, 'eth')
+```
+
+Every generated wallet retains `addressType` and `publicKey`. `publicKey` is lowercase hex
+without a `0x` prefix: Cosmos uses a 33-byte compressed SEC1 public key, while ETH uses the
+64-byte `X || Y` coordinates without the leading `0x04`. The legacy `pubKeyAnyString` field
+remains the compressed Cosmos public key for compatibility.
 
 #### `convert0xToMeAddress(address)`
 
@@ -158,7 +182,7 @@ const meAddr = sdk.wallet.convert0xToMeAddress('0x...')
 Convert ME address to 0x format.
 
 ```typescript
-const ethAddr = sdk.wallet.convertMeTo0xAddress('metaearth1...')
+const ethAddr = sdk.wallet.convertMeTo0xAddress('me1...')
 ```
 
 #### `getWalletAddresses()`
@@ -174,7 +198,7 @@ const addresses = sdk.wallet.getWalletAddresses()
 Query address balance.
 
 ```typescript
-const balance = await sdk.wallet.getBalance('metaearth1...', 'hub')
+const balance = await sdk.wallet.getBalance('me1...', 'hub')
 ```
 
 **API Endpoint**: `/cosmos/bank/v1beta1/balances/${address}`
@@ -209,12 +233,16 @@ Send transfer transaction (supports HUB and Rollup layers).
 
 ```typescript
 const txHash = await sdk.transaction.transfer({
-  fromAddress: 'metaearth1...',
-  toAddress: 'metaearth1...',
+  fromAddress: 'me1...',
+  toAddress: 'me1...',
   amount: [{ amount: '1000000', denom: 'umec' }],
   layer: 'hub', // or 'rollup'
 })
 ```
+
+Wallets created or imported with `addressType: 'eth'` automatically use Ethermint
+`ethsecp256k1` direct signing: SignDoc bytes are hashed with Keccak-256 and AuthInfo embeds
+`/ethermint.crypto.v1.ethsecp256k1.PubKey`. Cosmos wallets keep the existing signing path.
 
 #### `getTransaction(hash, layer?)`
 
@@ -239,9 +267,73 @@ console.log('Estimated Gas:', result.gas_info.gas_used)
 
 **API Endpoint**: `/cosmos/tx/v1beta1/simulate`
 
+#### Gas and fee calculation
+
+Transactions that use the SDK simulation path apply the same policy as the wallet runtime:
+
+```text
+gasLimit = ceil(simulatedGas × 1.5)
+fee      = ceil(gasLimit × 0.02)
+```
+
+When the calculated fee is less than or equal to `10000 umec`, the SDK uses the minimum fee plus
+an integer offset from `0` to `999 umec`. Generated client method signatures retain their legacy
+custom-gas argument for compatibility, but callers cannot override this shared formula.
+
+---
+
+### ME ID and Sub-accounts (`sdk.identity`)
+
+#### `bindSubAccount(params)`
+
+Bind a cached Cosmos-derived account to the ETH-derived address created from the same mnemonic
+and account index. The SDK verifies that both addresses share the same compressed secp256k1
+public key, serializes the Ethermint public key, simulates gas, signs, and broadcasts
+`/metaearth.kyc.MsgCreateSubAccount`.
+
+```typescript
+const txHash = await sdk.identity.bindSubAccount({
+  creator: cosmosWallet.address,
+  subAccount: ethWallet.address,
+  memo: 'Bind ETH sub-account',
+})
+```
+
+#### `getMeIdByAddress(address, layer?)`
+
+Query ME ID status and the bound sub-account by a main account address.
+
+```typescript
+const result = await sdk.identity.getMeIdByAddress('me1...')
+if (result.hasMeId) {
+  console.log(result.info?.did, result.info?.subAccount)
+}
+```
+
+#### `getMeIdByDid(did, layer?)`
+
+Query the main account and bound sub-account by ME ID.
+
+```typescript
+const result = await sdk.identity.getMeIdByDid('5010874248025')
+```
+
+#### `getMeIdBySubAccount(subAccount, layer?)`
+
+Query the main account and ME ID associated with an ETH-derived sub-account.
+
+```typescript
+const result = await sdk.identity.getMeIdBySubAccount('me1...')
+```
+
+Known chain responses for missing records are returned as `{ hasMeId: false, info: null }`.
+Network and unexpected protocol errors are thrown.
+
 ---
 
 ### Staking (`sdk.staking`)
+
+All staking APIs operate on the HUB layer. Omit `layer`; rollup staking is not supported.
 
 #### `stakeFlexible(params)`
 
@@ -249,9 +341,8 @@ Flexible staking (HUB layer).
 
 ```typescript
 const txHash = await sdk.staking.stakeFlexible({
-  address: 'metaearth1...',
+  address: 'me1...',
   amount: { amount: '1000000', denom: 'umec' },
-  layer: 'hub',
 })
 ```
 
@@ -261,28 +352,27 @@ Unstake flexible staking (HUB layer).
 
 ```typescript
 const txHash = await sdk.staking.unstakeFlexible({
-  address: 'metaearth1...',
+  address: 'me1...',
   amount: { amount: '1000000', denom: 'umec' },
-  layer: 'hub',
 })
 ```
 
-#### `getFlexibleDelegation(delegatorAddr, layer?)`
+#### `getFlexibleDelegation(delegatorAddr)`
 
 Query flexible delegation.
 
 ```typescript
-const delegation = await sdk.staking.getFlexibleDelegation('metaearth1...', 'hub')
+const delegation = await sdk.staking.getFlexibleDelegation('me1...')
 ```
 
 **API Endpoint**: `/metaearth/wstaking/delegation/{delegator_addr}`
 
-#### `getFlexibleDelegationRewards(delegatorAddr, layer?)`
+#### `getFlexibleDelegationRewards(delegatorAddr)`
 
 Query flexible delegation rewards.
 
 ```typescript
-const rewards = await sdk.staking.getFlexibleDelegationRewards('metaearth1...', 'hub')
+const rewards = await sdk.staking.getFlexibleDelegationRewards('me1...')
 ```
 
 **API Endpoint**: `/metaearth/wstaking/delegation-rewards/{delegator_address}`
@@ -292,8 +382,99 @@ const rewards = await sdk.staking.getFlexibleDelegationRewards('metaearth1...', 
 Claim flexible staking rewards (HUB layer).
 
 ```typescript
-const txHash = await sdk.staking.claimStakingReward('metaearth1...')
+const txHash = await sdk.staking.claimStakingReward('me1...')
 ```
+
+#### `getFixedDepositConfigs(address)`
+
+Resolve the wallet's ME ID region and query its fixed-term options. Cosmos accounts use the
+main-address ME ID lookup; ETH-derived sub-accounts use the sub-account lookup. The address must
+belong to a wallet already imported into this SDK instance because its cached `addressType`
+selects the lookup path.
+
+```typescript
+const { regionId, configs } = await sdk.staking.getFixedDepositConfigs('me1...')
+const activeConfigs = configs.filter((config) => config.status === 'FIXED_DEPOSIT_CFG_ACTIVE')
+```
+
+**API Endpoints**:
+
+- Cosmos account: `/metaearth/did/did?address={address}`
+- ETH-derived sub-account: `/metaearth/kyc/QuerySubAccountDidResponse?sub_account={address}`
+- Region options: `/metaearth/wstaking/fixed_deposit_cfg?regionIds={regionId}`
+
+Fixed-term queries use these public data contracts:
+
+```typescript
+type FixedDepositConfigStatus =
+  | 'FIXED_DEPOSIT_CFG_ACTIVE'
+  | 'FIXED_DEPOSIT_CFG_INACTIVE'
+  | 'UNRECOGNIZED'
+
+type FixedDepositState = 'ALL_STATE' | 'NOT_EXPIRED' | 'EXPIRED'
+
+interface FixedDepositConfig {
+  term: number
+  rate: string
+  status: FixedDepositConfigStatus
+}
+
+interface FixedDepositRecord {
+  id: number
+  account: string
+  principal?: { denom: string; amount: string }
+  interest?: { denom: string; amount: string }
+  startTime: string
+  endTime: string
+  term: number
+  rate: string
+}
+```
+
+`term` is measured in days. Rates and coin amounts remain strings so chain values are not rounded.
+REST `start_time` and `end_time` fields are returned as `startTime` and `endTime`. Missing or blank
+protocol-required fields cause the query to throw instead of returning incomplete records.
+
+#### `stakeFixed(params)`
+
+Create a fixed-term position after validating that the requested term is active for the wallet's
+ME ID region. The SDK automatically selects standard Cosmos `secp256k1` or Ethermint
+`ethsecp256k1` signing from the imported wallet's `addressType`. The principal amount must be a
+positive integer string, and `term` must be a positive integer matching an active regional config.
+
+```typescript
+const txHash = await sdk.staking.stakeFixed({
+  address: 'me1...',
+  principal: { amount: '1000000', denom: 'umec' },
+  term: 30,
+  memo: 'optional memo',
+})
+```
+
+#### `withdrawFixed(params)`
+
+Submit a fixed-term withdrawal transaction. The chain validates whether the position is
+withdrawable. `id` must be a positive integer.
+
+```typescript
+const txHash = await sdk.staking.withdrawFixed({
+  address: 'me1...',
+  id: 191,
+  memo: 'optional memo',
+})
+```
+
+#### `getFixedDeposits(address, state?)`
+
+Query fixed-term positions. `state` defaults to `ALL_STATE`; use `NOT_EXPIRED` or `EXPIRED` to
+filter by expiry state. This query accepts any account address and does not require an imported
+wallet.
+
+```typescript
+const positions = await sdk.staking.getFixedDeposits('me1...', 'ALL_STATE')
+```
+
+**API Endpoint**: `/metaearth/wstaking/fixed_deposit_by_acct/{address}/{state}`
 
 ---
 
@@ -332,7 +513,7 @@ Submit a software upgrade proposal.
 
 ```typescript
 const txHash = await sdk.governance.submitSoftwareUpgradeProposal({
-  proposer: 'mec1...',
+  proposer: 'me1...',
   content: {
     title: 'Upgrade to v2.0.0',
     description: 'Upgrade description...',
@@ -354,7 +535,7 @@ Vote on a proposal.
 ```typescript
 const txHash = await sdk.governance.voteProposal({
   proposalId: 1,
-  voter: 'mec1...',
+  voter: 'me1...',
   option: 'yes', // 'yes' | 'no' | 'abstain' | 'no_with_veto'
 })
 console.log('Transaction Hash:', txHash)
@@ -362,7 +543,7 @@ console.log('Transaction Hash:', txHash)
 
 ---
 
-### Contract Operations (`sdk.contract`)
+### WASM Contract Operations (`sdk.contract`)
 
 #### `storeCode(params)`
 
@@ -471,6 +652,98 @@ console.log('Candy Info:', candy.data)
 
 ---
 
+### EVM Contract Operations (`sdk.contract`)
+
+EVM contract operations use Ethers.js and an EVM JSON-RPC endpoint. The testnet defaults to `http://118.175.0.249:8545` with chain ID `400`. Override both values together when using another endpoint:
+
+```typescript
+const sdk = new MetaEarthSDK({
+  config: {
+    network: 'testnet',
+    evmRpcUrl: 'https://your-evm-rpc.example.com',
+    evmChainId: 1234,
+  },
+})
+
+await sdk.initialize()
+```
+
+The `sender` for deployment and state-changing calls must be an ETH-derived `me1` account already created or imported through `sdk.wallet`. Its private key stays in the wallet service and is used only for local transaction signing.
+
+The examples below assume `ethWallet` was created or imported with `addressType: 'eth'`, while `abi` and `bytecode` come from the target contract's compiler artifact. Never hardcode production private keys in application source.
+
+#### `deployEvmContract(params)`
+
+Deploy compiled EVM bytecode with its ABI and constructor arguments:
+
+```typescript
+const deployment = await sdk.contract.deployEvmContract({
+  sender: ethWallet.address,
+  abi,
+  bytecode,
+  constructorArgs: ['MetaEarth Token', 'MEC', 18, '1000000'],
+})
+
+console.log('Contract Address:', deployment.contractAddress)
+console.log('Transaction Hash:', deployment.transactionHash)
+```
+
+#### `executeEvmContract(params)`
+
+Execute a state-changing method. Use the full signature when the ABI contains overloaded methods:
+
+```typescript
+const execution = await sdk.contract.executeEvmContract({
+  sender: ethWallet.address,
+  contractAddress: deployment.contractAddress,
+  abi,
+  method: 'transfer(address,uint256)',
+  args: ['0xRecipient...', '1000000000000000000'],
+  value: '0', // wei, optional
+})
+
+console.log('Transaction Hash:', execution.transactionHash)
+```
+
+The SDK performs an `eth_call` preflight by default before broadcasting. Set `simulate: false` only when the target method cannot be simulated safely.
+
+#### `queryEvmContract(params)`
+
+Call a read-only contract method through `eth_call`:
+
+```typescript
+const balance = await sdk.contract.queryEvmContract({
+  contractAddress: deployment.contractAddress,
+  abi,
+  method: 'balanceOf',
+  args: ['0xOwner...'],
+})
+
+console.log('Token Balance:', String(balance))
+```
+
+#### `getEvmContractInfo(contractAddress)`
+
+Inspect an EVM address without an ABI:
+
+```typescript
+const info = await sdk.contract.getEvmContractInfo(deployment.contractAddress)
+console.log({
+  address: info.address,
+  chainId: info.chainId.toString(),
+  isContract: info.isContract,
+  bytecode: info.bytecode,
+  balance: info.balance.toString(),
+  transactionCount: info.transactionCount,
+})
+```
+
+An address alone can only provide RPC-level information such as bytecode and native balance. Querying contract state or methods requires the contract ABI. For deployments and writes, gas is estimated automatically and a 20% margin is applied; `gasLimit`, EIP-1559 fee fields, `nonce`, and `confirmations` can be supplied explicitly when needed.
+
+Browser applications served over HTTPS must use an HTTPS EVM RPC endpoint; browsers block calls from an HTTPS page to the default HTTP testnet endpoint as mixed content.
+
+---
+
 ## Utility Functions
 
 ### Environment Detection
@@ -505,8 +778,8 @@ The project includes a complete React + TypeScript demo application showcasing a
 
 ```bash
 cd examples/react-demo
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Visit http://localhost:5173
@@ -516,10 +789,15 @@ Visit http://localhost:5173
 - **Wallet Management Panel** - Create, import, address conversion
 - **Query Panel** - Balance query, transaction query, node info
 - **Transaction Panel** - HUB and Rollup layer transfers
-- **Staking Panel** - Stake, unstake, query delegation, query rewards, claim rewards
+- **Staking Panel** - Flexible staking plus fixed-term options, deposits, withdrawals, and queries
 - **Governance Panel** - Query proposals (V1)
-- **Contract Panel** - Store code, instantiate contract, execute contract
+- **WASM Contract Panel** - Store code, instantiate contract, execute contract
+- **EVM Contract Panel** - Deploy bytecode, execute methods, query methods, inspect addresses
 - **Real-time Log System** - View all operation logs
+
+The EVM panel includes a complete `ERC20Token.sol` example. Its ABI, Paris-compatible bytecode, and constructor arguments are preloaded. After a successful deployment, the new contract address and matching `mint`/`balanceOf` examples are copied into the Execute and Query tabs automatically.
+
+The Solidity source and generated artifact are located under `examples/react-demo/src/evm`. `pnpm run compile:evm-example` regenerates the artifact, and both `dev` and `build` run this compilation automatically.
 
 ---
 
@@ -543,14 +821,14 @@ sdk.setNetwork('mainnet')
 ```typescript
 try {
   const txHash = await sdk.transaction.transfer({
-    fromAddress: 'metaearth1...',
-    toAddress: 'metaearth1...',
-    amount: { amount: '1000000', denom: 'umec' },
+    fromAddress: 'me1...',
+    toAddress: 'me1...',
+    amount: [{ amount: '1000000', denom: 'umec' }],
     layer: 'hub',
   })
   console.log('Transfer successful:', txHash)
 } catch (error) {
-  console.error('Transfer failed:', error.message)
+  console.error('Transfer failed:', error instanceof Error ? error.message : String(error))
 }
 ```
 
@@ -581,7 +859,7 @@ console.log('Environment:', sdk.getEnvironment())
 
 ### Q: Which networks does the SDK support?
 
-**A**: Supports Meta Earth testnet (`testnet`) and mainnet (`mainnet`). Defaults to testnet.
+**A**: Supports Meta Earth testnet (`testnet`) and mainnet (`mainnet`). Defaults to testnet. Testnet includes default EVM RPC settings; mainnet EVM operations require explicit `evmRpcUrl` and `evmChainId` overrides.
 
 ### Q: What is a Layer?
 
@@ -598,16 +876,20 @@ Most operations execute on the HUB layer by default.
 
 ### Q: Can I use this in production?
 
-**A**: Yes. All implemented features have been tested, but we recommend thorough testing on testnet before deploying to mainnet.
+**A**: Perform an application-specific security review and testnet validation before production use. Configure and verify the expected EVM RPC and chain ID explicitly for mainnet; the included EVM write workflow has not been validated through a live mainnet deployment.
 
 ### Q: What contract operations are supported?
 
-**A**: Currently supports the complete WASM contract lifecycle:
+**A**: Supports both WASM and EVM contract operations:
 
 - `storeCode` - Store contract code
 - `deployContract` - Instantiate contract
 - `executeContract` - Execute contract
 - `getCodeIdByHash` - Find Code ID by hash
+- `deployEvmContract` - Deploy EVM bytecode with Ethers.js
+- `executeEvmContract` - Sign and send an EVM contract transaction
+- `queryEvmContract` - Call an EVM contract read method
+- `getEvmContractInfo` - Inspect EVM bytecode, balance, and address metadata
 
 ---
 
@@ -618,6 +900,7 @@ Most operations execute on the HUB layer by default.
 ```
 src/
 ├── sdk.ts                    # Main SDK class
+├── types.ts                  # Public SDK types
 ├── modules/                  # Feature modules
 │   ├── wallet/
 │   │   └── service.ts       # Wallet service
@@ -627,20 +910,26 @@ src/
 │   │   └── service.ts       # Staking service
 │   ├── governance/
 │   │   └── service.ts       # Governance service
-│   └── contract/
-│       └── service.ts       # Contract service
+│   ├── contract/
+│   │   └── service.ts       # WASM and EVM contract service
+│   └── identity/
+│       └── service.ts       # ME ID and sub-account service
 ├── api/                     # API layer
 │   ├── wallet.ts
 │   ├── transaction.ts
 │   ├── staking.ts
 │   ├── governance.ts
-│   └── types.ts            # API type definitions
+│   ├── identity.ts
+│   ├── contract.ts
+│   ├── evm-contract.ts
+│   └── types.ts             # API type definitions
 ├── types/                   # Type definitions
 │   ├── base.ts
 │   ├── wallet.ts
 │   ├── transaction.ts
 │   ├── staking.ts
-│   └── governance.ts
+│   ├── governance.ts
+│   └── contract.ts
 └── utils/                   # Utility functions
     ├── http-client.ts
     ├── logger.ts
@@ -652,7 +941,7 @@ src/
 - **Language**: TypeScript 5.3+
 - **Build**: Vite 5.0 + Rollup
 - **Blockchain**: @cosmjs/\* (0.31.3)
-- **Cryptography**: ethers.js ^6.15.0, secp256k1, bip39
+- **Cryptography**: ethers.js ^6.17.0, secp256k1, bip39
 - **Testing**: Vitest
 - **UI Demo**: React + Ant Design 6.0
 

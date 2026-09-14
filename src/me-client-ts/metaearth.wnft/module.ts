@@ -138,7 +138,14 @@ export const txClient = (
           // gas: String(gas),
           gas: gas_max_set,
         }
-        const signResData = await getSignData({ signingClient, address, msg, fee: _fee, memo })
+        const signResData = await getSignData({
+          signingClient,
+          signer,
+          address,
+          msg,
+          fee: _fee,
+          memo,
+        })
         if (!(signResData as any).result) throw Error('signResData Error')
         let rowRes = signResData.rowRes
 
@@ -189,7 +196,7 @@ export const txClient = (
         amount: [{ denom: 'umec', amount: `${gas}` }],
         gas: gas_max_set,
       }
-      let signResData = await getSignData({ signingClient, address, msg: _msg, fee })
+      let signResData = await getSignData({ signingClient, signer, address, msg: _msg, fee })
       if (!(signResData as any).result) throw Error()
       let rowRes = signResData.rowRes
       const rowResJSON = await handleTxRaw(rowRes)

@@ -1,33 +1,42 @@
-import { gas_adj, gas_price, gas_floatValue, gas_min_fee, gas_max_set } from '../config/define'
-import BigNumber from 'bignumber.js'
+import { gas_min_fee, gas_price } from '../config/define'
+
+const GAS_LIMIT_MULTIPLIER = 1.5
+
+const compareDecimal = (left: string | number, right: string | number) => {
+  const leftUnits = Number(left)
+  const rightUnits = Number(right)
+
+  if (leftUnits === rightUnits) {
+    return 0
+  }
+
+  return leftUnits < rightUnits ? -1 : 1
+}
 
 /**
  * Calculate final gas fee
  * @param simulateGas Simulated gas
- * @param customGas Custom gas limit
+ * @param _customGas Retained for generated-code compatibility
  * @returns Final gas fee string
  */
-export const getFinalGas = (simulateGas: string, customGas: string | number) => {
-  debugger
-  const newGas = (+simulateGas + 1000) * gas_adj
-  const _newGas = Math.floor(newGas * gas_price + gas_floatValue)
-  const _finalGas = BigNumber(customGas).isLessThan(_newGas) ? _newGas : customGas
-  const gas_fee = BigNumber(_finalGas).isLessThan(gas_min_fee) ? gas_min_fee : _finalGas
-  return gas_fee.toString()
+export const getFinalGas = (simulateGas: string, _customGas: string | number) => {
+  // Keep the second parameter for generated-code compatibility; callers cannot override the shared formula.
+  const gasFee = Math.ceil(Number(getFinalGasLimit(simulateGas)) * gas_price)
+  if (compareDecimal(gasFee, gas_min_fee) <= 0) {
+    // Coin amounts must be integers; add 0-999 umec to the minimum to match the wallet runtime.
+    return String(Number(gas_min_fee) + Math.floor(Math.random() * 1000))
+  }
+
+  return gasFee.toString()
 }
 
 /**
  * Calculate final gas
  * @param simulateGas Simulated gas
- * @param customGas Custom gas limit
- * @returns Final gas fee string
+ * @returns Final gas limit string
  */
 export const getFinalGasLimit = (simulateGas: string) => {
-  debugger
-  const newGas = +simulateGas * 1.15
-  const _newGas = Math.floor(newGas)
-  const gas = BigNumber(_newGas).isLessThan(gas_max_set) ? gas_max_set : _newGas
-  return gas.toString()
+  return Math.ceil(Number(simulateGas) * GAS_LIMIT_MULTIPLIER).toString()
 }
 
 export default {}

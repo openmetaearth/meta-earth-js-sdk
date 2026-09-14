@@ -34,6 +34,12 @@ export * from './contract'
 // Wallet related API
 export * from './wallet'
 
+// Identity and sub-account related API
+export * from './identity'
+
+// EVM contract related API
+export * from './evm-contract'
+
 // Initialize default HTTP client instance, use testnet configuration
 httpClient.setNetworkConfig(TEST_NET_CONFIG)
 httpClient.setLayer('hub')

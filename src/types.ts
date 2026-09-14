@@ -1,4 +1,5 @@
 import { MsgSubmitProposal } from './me-client-ts/cosmos.gov.v1beta1/module'
+import type { BigNumberish, BlockTag, BytesLike, InterfaceAbi, TransactionReceipt } from 'ethers'
 
 /**
  * Network Type
@@ -16,6 +17,11 @@ export type Layer = 'hub' | 'rollup'
 export type ContractLayer = 'evm' | 'wasm'
 
 /**
+ * Wallet address derivation type
+ */
+export type WalletAddressType = 'cosmos' | 'eth'
+
+/**
  * SDK Configuration Interface
  */
 export interface SDKConfig {
@@ -23,6 +29,10 @@ export interface SDKConfig {
   debug?: boolean
   network?: Network
   layer?: Layer
+  /** Optional EVM JSON-RPC override. */
+  evmRpcUrl?: string
+  /** Expected EVM chain ID used to reject a mismatched RPC endpoint. */
+  evmChainId?: number
 }
 
 /**
@@ -44,6 +54,8 @@ export interface WalletInfo {
   mnemonic?: string
   privateKey?: string
   privateKeyBuffer?: Buffer
+  publicKey?: string
+  addressType?: WalletAddressType
   address?: string
   index?: number
 }
@@ -69,12 +81,103 @@ export interface TransferParams {
 }
 
 /**
+ * Parameters for binding a Cosmos account to its ETH-derived sub-account.
+ */
+export interface BindSubAccountParams {
+  creator: string
+  subAccount: string
+  memo?: string
+  layer?: Layer
+}
+
+/**
+ * ME ID information returned by the chain REST API.
+ */
+export interface MeIdInfo {
+  did: string
+  address: string
+  pubkey: string
+  status: string
+  regionId: string
+  kycLevel: string
+  subAccount: string
+}
+
+/**
+ * ME ID lookup result. Network and protocol errors are still thrown.
+ */
+export interface MeIdLookupResult {
+  hasMeId: boolean
+  info: MeIdInfo | null
+}
+
+/**
  * Flexible Staking Parameters
  */
 export interface FlexibleStakingParams {
   address: string
   amount: Coin
   layer?: Layer
+}
+
+/**
+ * Fixed-term staking parameters.
+ */
+export interface FixedDepositParams {
+  address: string
+  principal: Coin
+  term: number
+  memo?: string
+}
+
+/**
+ * Fixed-term staking withdrawal parameters.
+ */
+export interface WithdrawFixedDepositParams {
+  address: string
+  id: number
+  memo?: string
+}
+
+/**
+ * Fixed-term staking records can be filtered by their expiry state.
+ */
+export type FixedDepositState = 'ALL_STATE' | 'NOT_EXPIRED' | 'EXPIRED'
+
+export type FixedDepositConfigStatus =
+  | 'FIXED_DEPOSIT_CFG_ACTIVE'
+  | 'FIXED_DEPOSIT_CFG_INACTIVE'
+  | 'UNRECOGNIZED'
+
+/**
+ * An available fixed-term staking option for one ME ID region.
+ */
+export interface FixedDepositConfig {
+  term: number
+  rate: string
+  status: FixedDepositConfigStatus
+}
+
+/**
+ * Region and term options resolved from a wallet address.
+ */
+export interface FixedDepositConfigResult {
+  regionId: string
+  configs: FixedDepositConfig[]
+}
+
+/**
+ * A fixed-term staking position returned by the chain REST API.
+ */
+export interface FixedDepositRecord {
+  id: number
+  account: string
+  principal?: Coin
+  interest?: Coin
+  startTime: string
+  endTime: string
+  term: number
+  rate: string
 }
 
 /**
@@ -161,6 +264,75 @@ export interface StoreCodeParams {
   instantiatePermission?: any
   layer?: ContractLayer
   networkLayer?: Layer
+}
+
+/**
+ * Common EVM transaction overrides. Amounts use wei-compatible BigNumberish values.
+ */
+export interface EvmTransactionOptions {
+  value?: BigNumberish
+  gasLimit?: BigNumberish
+  maxFeePerGas?: BigNumberish
+  maxPriorityFeePerGas?: BigNumberish
+  nonce?: number
+  confirmations?: number
+}
+
+/**
+ * EVM contract deployment parameters.
+ */
+export interface DeployEvmContractParams extends EvmTransactionOptions {
+  /** Cached me1 ETH-derived account used for local signing. */
+  sender: string
+  abi: InterfaceAbi
+  bytecode: BytesLike | { object: string }
+  constructorArgs?: readonly unknown[]
+}
+
+/**
+ * EVM contract state-changing method parameters.
+ */
+export interface ExecuteEvmContractParams extends EvmTransactionOptions {
+  /** Cached me1 ETH-derived account used for local signing. */
+  sender: string
+  contractAddress: string
+  abi: InterfaceAbi
+  /** Use a full signature such as transfer(address,uint256) for overloaded methods. */
+  method: string
+  args?: readonly unknown[]
+  /** Run an eth_call preflight before broadcasting, enabled by default. */
+  simulate?: boolean
+}
+
+/**
+ * Read-only EVM contract method parameters.
+ */
+export interface QueryEvmContractParams {
+  contractAddress: string
+  abi: InterfaceAbi
+  method: string
+  args?: readonly unknown[]
+  blockTag?: BlockTag
+}
+
+export interface EvmDeploymentResult {
+  contractAddress: string
+  transactionHash: string
+  receipt: TransactionReceipt
+}
+
+export interface EvmExecutionResult {
+  transactionHash: string
+  receipt: TransactionReceipt
+}
+
+export interface EvmContractInfo {
+  address: string
+  chainId: bigint
+  isContract: boolean
+  bytecode: string
+  balance: bigint
+  transactionCount: number
 }
 
 /**
